@@ -36,22 +36,22 @@ class course_config {
     /**
      * Resolve the point value to award for a given event in a given course.
      *
+     * Rewards are strictly per-course opt-in — there is no site-wide default.
+     *
      * Rules:
-     *  - If courseid is 0 (no course context, e.g. site badges), use the plugin default.
-     *  - If no row exists for the course, return 0 (rewards are opt-in).
+     *  - If courseid <= 0 (no course context, e.g. site-level badges), return 0.
+     *  - If no btcrewards_course_config row exists, return 0.
      *  - If the row is disabled, return 0.
-     *  - Otherwise return the per-course override, falling back to the plugin default
-     *    when the column is null.
+     *  - If the override column is NULL, return 0.
+     *  - Otherwise return the per-course override.
      *
      * @param int    $courseid
      * @param string $key One of points_course_completed|points_quiz_passed|points_badge_awarded.
      * @return int
      */
     public static function resolve_points(int $courseid, string $key): int {
-        $default = (int) get_config('local_btcrewards', $key);
-
         if ($courseid <= 0) {
-            return $default;
+            return 0;
         }
 
         $row = self::get($courseid);
@@ -59,7 +59,7 @@ class course_config {
             return 0;
         }
 
-        return isset($row->{$key}) && $row->{$key} !== null ? (int) $row->{$key} : $default;
+        return isset($row->{$key}) && $row->{$key} !== null ? (int) $row->{$key} : 0;
     }
 
     /**

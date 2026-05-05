@@ -53,8 +53,8 @@ $string['course_config_nav'] = 'Bitcoin rewards';
 $string['course_config_title'] = 'Bitcoin rewards for this course';
 $string['course_config_enabled'] = 'Enable rewards for this course';
 $string['course_config_enabled_help'] = 'When unchecked, no points are awarded for activity in this course. Rewards are opt-in per course.';
-$string['course_config_override'] = 'Per-course override';
-$string['course_config_override_help'] = 'Leave empty to use the site-wide default from the plugin settings. Enter 0 or higher to override for this course.';
+$string['course_config_override'] = 'Points awarded';
+$string['course_config_override_help'] = 'How many points this course awards for the event. Leave empty (or 0) to award nothing for this event in this course.';
 $string['course_config_must_be_int'] = 'Must be a non-negative integer or left empty.';
 
 $string['my_title'] = 'My Bitcoin rewards';

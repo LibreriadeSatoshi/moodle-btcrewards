@@ -49,8 +49,8 @@ $string['course_config_nav'] = 'Recompensas Bitcoin';
 $string['course_config_title'] = 'Recompensas Bitcoin para este curso';
 $string['course_config_enabled'] = 'Habilitar recompensas para este curso';
 $string['course_config_enabled_help'] = 'Si está desmarcado, no se otorgan puntos por la actividad en este curso. Las recompensas requieren activación por curso.';
-$string['course_config_override'] = 'Sobreescritura por curso';
-$string['course_config_override_help'] = 'Dejar vacío para usar el valor por defecto del sitio. Ingrese 0 o más para sobreescribir en este curso.';
+$string['course_config_override'] = 'Puntos otorgados';
+$string['course_config_override_help'] = 'Cuántos puntos otorga este curso para el evento. Dejá vacío (o 0) para no dar puntos por este evento en este curso.';
 $string['course_config_must_be_int'] = 'Debe ser un número entero no negativo o dejarse vacío.';
 
 $string['my_title'] = 'Mis recompensas Bitcoin';

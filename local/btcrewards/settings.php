@@ -85,27 +85,8 @@ if ($hassiteconfig) {
         get_string('setting_webhook_url_desc', 'local_btcrewards', $webhookurl)
     ));
 
-    $settings->add(new admin_setting_configtext(
-        'local_btcrewards/points_course_completed',
-        get_string('setting_points_course_completed', 'local_btcrewards'),
-        get_string('setting_points_course_completed_desc', 'local_btcrewards'),
-        200,
-        PARAM_INT
-    ));
-
-    $settings->add(new admin_setting_configtext(
-        'local_btcrewards/points_quiz_passed',
-        get_string('setting_points_quiz_passed', 'local_btcrewards'),
-        get_string('setting_points_quiz_passed_desc', 'local_btcrewards'),
-        50,
-        PARAM_INT
-    ));
-
-    $settings->add(new admin_setting_configtext(
-        'local_btcrewards/points_badge_awarded',
-        get_string('setting_points_badge_awarded', 'local_btcrewards'),
-        get_string('setting_points_badge_awarded_desc', 'local_btcrewards'),
-        100,
-        PARAM_INT
-    ));
+    // Per-event point values are configured per-course only — there is no
+    // site-wide default. This is intentional: a site-wide default could
+    // silently award points across every course (and site-level badges) the
+    // moment the plugin is installed, so we force opt-in.
 }
