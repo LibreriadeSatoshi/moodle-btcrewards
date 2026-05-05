@@ -24,6 +24,9 @@ use local_btcrewards\points_source\factory as points_source_factory;
 
 defined('MOODLE_INTERNAL') || die();
 
+global $CFG;
+require_once($CFG->dirroot . '/local/btcrewards/lib.php');
+
 /**
  * Coordinates point awards, student claims, and queue draining.
  */
@@ -63,21 +66,47 @@ class payout_engine {
     }
 
     /**
-     * Claim all unclaimed points as a queued onchain payout.
+     * Claim all unclaimed points as a queued payout.
      *
      * @throws \moodle_exception When misconfigured, below threshold, or missing address.
      */
     public function claim(int $userid, string $destination): int {
-        global $DB;
+        $destination = $this->validate_destination($destination);
+        $usdcents    = $this->compute_claim_value($userid);
 
+        $pointids = $this->source->get_unclaimed_point_ids($userid);
+        if (empty($pointids)) {
+            throw new \moodle_exception('claim_below_threshold', 'local_btcrewards');
+        }
+
+        $client = new payment_client();
+        [$ratecents, $sats] = $this->lock_rate_and_sats($usdcents, $client);
+        $this->enforce_onchain_floor($destination, $sats, $ratecents, $client);
+
+        return $this->persist_claim($userid, $usdcents, $ratecents, $sats, $destination, $pointids);
+    }
+
+    /**
+     * Trim and require a non-empty destination string.
+     *
+     * @throws \moodle_exception
+     */
+    private function validate_destination(string $destination): string {
         $destination = trim($destination);
         if ($destination === '') {
             throw new \moodle_exception('claim_no_destination', 'local_btcrewards');
         }
+        return $destination;
+    }
 
-        global $CFG;
-        require_once($CFG->dirroot . '/local/btcrewards/lib.php');
-
+    /**
+     * Read pricing config, compute the user's claim value in USD cents, and
+     * gate against the configured minimum payout.
+     *
+     * @return int USD cents the user is claiming.
+     * @throws \moodle_exception
+     */
+    private function compute_claim_value(int $userid): int {
         $minpayoutcents = local_btcrewards_min_payout_cents();
         $centsperpoint  = local_btcrewards_cents_per_point();
 
@@ -85,40 +114,60 @@ class payout_engine {
             throw new \moodle_exception('claim_misconfigured', 'local_btcrewards');
         }
 
-        $unclaimed = $this->source->get_unclaimed_points($userid);
-        $usdcents  = $unclaimed * $centsperpoint;
+        $usdcents = $this->source->get_unclaimed_points($userid) * $centsperpoint;
         if ($usdcents < $minpayoutcents) {
             throw new \moodle_exception('claim_below_threshold', 'local_btcrewards',
                 '', number_format($minpayoutcents / 100, 2));
         }
+        return $usdcents;
+    }
 
-        $pointids = $this->source->get_unclaimed_point_ids($userid);
-        if (empty($pointids)) {
-            throw new \moodle_exception('claim_below_threshold', 'local_btcrewards');
-        }
-
-        // Fetch live rate + onchain limit. Rate locks into the queue row so
-        // sats are deterministic between now and when the cron submits.
-        $client    = new payment_client();
+    /**
+     * Lock the BTC/USD rate and convert the claim value to sats. The rate
+     * stays on the queue row for audit so the same number is used at submit
+     * time even if the live rate has drifted.
+     *
+     * @return array{0: int, 1: int} [rate_cents_per_btc, sats]
+     */
+    private function lock_rate_and_sats(int $usdcents, payment_client $client): array {
         $ratecents = $client->fetch_rate();
         $sats      = (int) round($usdcents * 100000000 / $ratecents);
+        return [$ratecents, $sats];
+    }
 
-        // Per-rail validation: reject onchain destinations below the live
-        // Boltz floor before we even enqueue. Lightning has no practical
-        // floor (~21 sats), so we only gate onchain.
-        if (local_btcrewards_guess_dest_type($destination) === 'onchain') {
-            try {
-                $limits = $client->fetch_limits();
-            } catch (\moodle_exception $e) {
-                $limits = ['onchain_min' => 0];
-            }
-            if ($limits['onchain_min'] > 0 && $sats < $limits['onchain_min']) {
-                $minusd = $limits['onchain_min'] * $ratecents / 100000000 / 100;
-                throw new \moodle_exception('claim_onchain_below_min', 'local_btcrewards',
-                    '', number_format($minusd, 2));
-            }
+    /**
+     * Reject onchain destinations whose sats amount is below the swap
+     * provider's live minimum. Lightning has no practical floor and is
+     * accepted as-is.
+     *
+     * @throws \moodle_exception
+     */
+    private function enforce_onchain_floor(string $destination, int $sats, int $ratecents, payment_client $client): void {
+        if (local_btcrewards_guess_dest_type($destination) !== 'onchain') {
+            return;
         }
+        try {
+            $limits = $client->fetch_limits();
+        } catch (\moodle_exception $e) {
+            return; // Limits unavailable — fall back to whatever the service decides at /pay time.
+        }
+        if ($limits['onchain_min'] > 0 && $sats < $limits['onchain_min']) {
+            $minusd = $limits['onchain_min'] * $ratecents / 100000000 / 100;
+            throw new \moodle_exception('claim_onchain_below_min', 'local_btcrewards',
+                '', number_format($minusd, 2));
+        }
+    }
 
+    /**
+     * Insert the queue row and link every consumed point.
+     *
+     * @return int payoutid of the new queue row.
+     */
+    private function persist_claim(
+        int $userid, int $usdcents, int $ratecents, int $sats,
+        string $destination, array $pointids
+    ): int {
+        global $DB;
         $now = time();
         $payoutid = $DB->insert_record('btcrewards_payout_queue', (object) [
             'userid'       => $userid,
@@ -134,14 +183,12 @@ class payout_engine {
             'timecreated'  => $now,
             'timemodified' => $now,
         ]);
-
         foreach ($pointids as $pid) {
             $DB->insert_record('btcrewards_payout_items', (object) [
                 'payoutid' => $payoutid,
                 'pointsid' => $pid,
             ]);
         }
-
         return (int) $payoutid;
     }
 

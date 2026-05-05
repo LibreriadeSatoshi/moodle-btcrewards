@@ -109,12 +109,8 @@ class payment_client {
      * @throws \moodle_exception If the service is unreachable or can't resolve a rate.
      */
     public function fetch_rate(): int {
-        [$code, $raw] = $this->request('GET', '/rate', null);
-        if ($code < 200 || $code >= 300) {
-            throw new \moodle_exception('error_rate_unavailable', 'local_btcrewards', '', "HTTP $code");
-        }
-        $decoded = json_decode((string) $raw, true) ?: [];
-        $cents = (int) ($decoded['cents_per_btc'] ?? 0);
+        $body = $this->get_json('/rate', 'error_rate_unavailable');
+        $cents = (int) ($body['cents_per_btc'] ?? 0);
         if ($cents <= 0) {
             throw new \moodle_exception('error_rate_unavailable', 'local_btcrewards', '', 'no rate in body');
         }
@@ -128,15 +124,27 @@ class payment_client {
      * @throws \moodle_exception If the service is unreachable.
      */
     public function fetch_limits(): array {
-        [$code, $raw] = $this->request('GET', '/limits', null);
-        if ($code < 200 || $code >= 300) {
-            throw new \moodle_exception('error_limits_unavailable', 'local_btcrewards', '', "HTTP $code");
-        }
-        $decoded = json_decode((string) $raw, true) ?: [];
+        $body = $this->get_json('/limits', 'error_limits_unavailable');
         return [
-            'onchain_min'   => (int) ($decoded['onchain_send']['min_sat'] ?? 0),
-            'lightning_min' => (int) ($decoded['lightning_send']['min_sat'] ?? 0),
+            'onchain_min'   => (int) ($body['onchain_send']['min_sat'] ?? 0),
+            'lightning_min' => (int) ($body['lightning_send']['min_sat'] ?? 0),
         ];
+    }
+
+    /**
+     * GET a JSON endpoint and return the decoded body. Centralises the
+     * request → 2xx → decode dance shared by every read endpoint.
+     *
+     * @param string $errkey Lang string used when the response is non-2xx.
+     * @return array Decoded body (empty array if not JSON-parseable).
+     * @throws \moodle_exception on non-2xx response.
+     */
+    private function get_json(string $path, string $errkey): array {
+        [$code, $raw] = $this->request('GET', $path, null);
+        if ($code < 200 || $code >= 300) {
+            throw new \moodle_exception($errkey, 'local_btcrewards', '', "HTTP $code");
+        }
+        return json_decode((string) $raw, true) ?: [];
     }
 
     /**
