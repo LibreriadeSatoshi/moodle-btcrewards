@@ -31,30 +31,20 @@ interface base {
     public function get_points(int $userid): int;
 
     /**
-     * Return points awarded to the user strictly after a given timestamp.
-     *
-     * @param int $userid
-     * @param int $since Unix timestamp.
-     * @return int
-     */
-    public function get_points_since(int $userid, int $since): int;
-
-    /**
-     * Return the total points value captured at the time of the user's last payout.
+     * Return the total unclaimed points for a user (not yet linked to any payout).
      *
      * @param int $userid
      * @return int
      */
-    public function get_last_payout_watermark(int $userid): int;
+    public function get_unclaimed_points(int $userid): int;
 
     /**
-     * Persist the new watermark after a successful payout queue insert.
+     * Return the IDs of all unclaimed point rows for a user.
      *
      * @param int $userid
-     * @param int $points
-     * @return void
+     * @return int[]
      */
-    public function set_last_payout_watermark(int $userid, int $points): void;
+    public function get_unclaimed_point_ids(int $userid): array;
 
     /**
      * Check whether this source's dependencies are satisfied and usable.

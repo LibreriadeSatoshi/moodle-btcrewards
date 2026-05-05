@@ -34,41 +34,25 @@ class native implements base {
     /**
      * {@inheritdoc}
      */
-    public function get_points_since(int $userid, int $since): int {
+    public function get_unclaimed_points(int $userid): int {
         global $DB;
-        $sql = "SELECT COALESCE(SUM(points), 0)
-                  FROM {btcrewards_points}
-                 WHERE userid = :userid AND timecreated > :since";
-        return (int) $DB->get_field_sql($sql, ['userid' => $userid, 'since' => $since]);
+        $sql = "SELECT COALESCE(SUM(p.points), 0)
+                  FROM {btcrewards_points} p
+             LEFT JOIN {btcrewards_payout_items} pi ON pi.pointsid = p.id
+                 WHERE p.userid = :userid AND pi.id IS NULL";
+        return (int) $DB->get_field_sql($sql, ['userid' => $userid]);
     }
 
     /**
      * {@inheritdoc}
      */
-    public function get_last_payout_watermark(int $userid): int {
+    public function get_unclaimed_point_ids(int $userid): array {
         global $DB;
-        $record = $DB->get_record('btcrewards_payout_watermark', ['userid' => $userid]);
-        return $record ? (int) $record->points : 0;
-    }
-
-    /**
-     * {@inheritdoc}
-     */
-    public function set_last_payout_watermark(int $userid, int $points): void {
-        global $DB;
-        $now = time();
-        $existing = $DB->get_record('btcrewards_payout_watermark', ['userid' => $userid]);
-        if ($existing) {
-            $existing->points = $points;
-            $existing->timemodified = $now;
-            $DB->update_record('btcrewards_payout_watermark', $existing);
-            return;
-        }
-        $DB->insert_record('btcrewards_payout_watermark', (object) [
-            'userid' => $userid,
-            'points' => $points,
-            'timemodified' => $now,
-        ]);
+        $sql = "SELECT p.id
+                  FROM {btcrewards_points} p
+             LEFT JOIN {btcrewards_payout_items} pi ON pi.pointsid = p.id
+                 WHERE p.userid = :userid AND pi.id IS NULL";
+        return array_map('intval', array_keys($DB->get_records_sql($sql, ['userid' => $userid])));
     }
 
     /**

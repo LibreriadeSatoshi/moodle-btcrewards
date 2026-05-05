@@ -29,11 +29,13 @@ class observer {
      * @return void
      */
     public static function course_completed(\core\event\course_completed $event): void {
-        $points = (int) get_config('local_btcrewards', 'points_course_completed');
+        $userid   = (int) $event->relateduserid;
+        $courseid = (int) $event->courseid;
+        $points   = course_config::resolve_points($courseid, 'points_course_completed');
         if ($points <= 0) {
             return;
         }
-        (new payout_engine())->award_points((int) $event->relateduserid, $points, 'course_completed');
+        (new payout_engine())->award_points($userid, $courseid, $points, 'course', $courseid);
     }
 
     /**
@@ -46,7 +48,9 @@ class observer {
         global $CFG;
         require_once($CFG->libdir . '/gradelib.php');
 
-        $points = (int) get_config('local_btcrewards', 'points_quiz_passed');
+        $userid   = (int) $event->relateduserid;
+        $courseid = (int) $event->courseid;
+        $points = course_config::resolve_points($courseid, 'points_quiz_passed');
         if ($points <= 0) {
             return;
         }
@@ -66,7 +70,8 @@ class observer {
             return;
         }
 
-        (new payout_engine())->award_points((int) $event->relateduserid, $points, 'quiz_passed');
+        $gradeitemid = (int) $gradeitem->id;
+        (new payout_engine())->award_points($userid, $courseid, $points, 'grade_items', $gradeitemid);
     }
 
     /**
@@ -76,10 +81,13 @@ class observer {
      * @return void
      */
     public static function badge_awarded(\core\event\badge_awarded $event): void {
-        $points = (int) get_config('local_btcrewards', 'points_badge_awarded');
+        $userid   = (int) $event->relateduserid;
+        $courseid = (int) $event->courseid;
+        $badgeid  = (int) $event->objectid;
+        $points   = course_config::resolve_points($courseid, 'points_badge_awarded');
         if ($points <= 0) {
             return;
         }
-        (new payout_engine())->award_points((int) $event->relateduserid, $points, 'badge_awarded');
+        (new payout_engine())->award_points($userid, $courseid, $points, 'badge', $badgeid);
     }
 }

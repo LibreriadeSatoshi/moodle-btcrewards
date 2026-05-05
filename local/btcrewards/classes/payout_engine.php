@@ -7,7 +7,10 @@
 // (at your option) any later version.
 
 /**
- * Payout engine: records points, checks thresholds, drains the queue.
+ * Payout engine: records points, handles claims, submits pending payouts.
+ *
+ * Status transitions to terminal states (paid / failed) happen in webhook.php,
+ * not here — the payment microservice pushes those updates to us.
  *
  * @package    local_btcrewards
  * @copyright  2026 local_btcrewards contributors
@@ -22,93 +25,159 @@ use local_btcrewards\points_source\factory as points_source_factory;
 defined('MOODLE_INTERNAL') || die();
 
 /**
- * Coordinates award, threshold check, queue insertion, and queue draining.
+ * Coordinates point awards, student claims, and queue draining.
  */
 class payout_engine {
     /** @var points_source */
     private $source;
 
-    /**
-     * Build the engine using the configured points source.
-     */
     public function __construct() {
         $this->source = points_source_factory::get();
     }
 
     /**
-     * Record a points award and evaluate whether a payout should be queued.
+     * Record a points award. Silently no-ops on duplicate (userid, component, itemid).
      *
-     * @param int    $userid
-     * @param int    $points
-     * @param string $eventtype
-     * @return void
+     * @return bool True if a new row was inserted, false if duplicate.
      */
-    public function award_points(int $userid, int $points, string $eventtype): void {
+    public function award_points(int $userid, int $courseid, int $points, string $component, int $itemid): bool {
         global $DB;
 
         if ($points <= 0) {
-            return;
+            return false;
         }
 
-        $DB->insert_record('btcrewards_points', (object) [
-            'userid'      => $userid,
-            'points'      => $points,
-            'event_type'  => $eventtype,
-            'timecreated' => time(),
-        ]);
-
-        $this->check_threshold($userid);
+        try {
+            $DB->insert_record('btcrewards_points', (object) [
+                'userid'      => $userid,
+                'courseid'    => $courseid,
+                'points'      => $points,
+                'component'   => $component,
+                'itemid'      => $itemid,
+                'timecreated' => time(),
+            ]);
+            return true;
+        } catch (\dml_write_exception $e) {
+            return false;
+        }
     }
 
     /**
-     * If the user has crossed the payout threshold, queue a payout row.
+     * Claim all unclaimed points as a queued onchain payout.
      *
-     * @param int $userid
-     * @return void
+     * @throws \moodle_exception When misconfigured, below threshold, or missing address.
      */
-    public function check_threshold(int $userid): void {
+    public function claim(int $userid, string $destination): int {
         global $DB;
 
-        $threshold    = (int) get_config('local_btcrewards', 'payout_threshold');
-        $satsperpoint = (int) get_config('local_btcrewards', 'sats_per_point');
-
-        if ($threshold <= 0 || $satsperpoint <= 0) {
-            return;
+        $destination = trim($destination);
+        if ($destination === '') {
+            throw new \moodle_exception('claim_no_destination', 'local_btcrewards');
         }
 
-        $total     = $this->source->get_points($userid);
-        $watermark = $this->source->get_last_payout_watermark($userid);
-        $sincelast = $total - $watermark;
+        global $CFG;
+        require_once($CFG->dirroot . '/local/btcrewards/lib.php');
 
-        if ($sincelast < $threshold) {
-            return;
+        $minpayoutcents = local_btcrewards_min_payout_cents();
+        $centsperpoint  = local_btcrewards_cents_per_point();
+
+        if ($minpayoutcents <= 0 || $centsperpoint <= 0) {
+            throw new \moodle_exception('claim_misconfigured', 'local_btcrewards');
         }
 
-        $destination = $this->get_user_destination($userid);
-        if ($destination === null) {
-            return;
+        $unclaimed = $this->source->get_unclaimed_points($userid);
+        $usdcents  = $unclaimed * $centsperpoint;
+        if ($usdcents < $minpayoutcents) {
+            throw new \moodle_exception('claim_below_threshold', 'local_btcrewards',
+                '', number_format($minpayoutcents / 100, 2));
+        }
+
+        $pointids = $this->source->get_unclaimed_point_ids($userid);
+        if (empty($pointids)) {
+            throw new \moodle_exception('claim_below_threshold', 'local_btcrewards');
+        }
+
+        // Fetch live rate + onchain limit. Rate locks into the queue row so
+        // sats are deterministic between now and when the cron submits.
+        $client    = new payment_client();
+        $ratecents = $client->fetch_rate();
+        $sats      = (int) round($usdcents * 100000000 / $ratecents);
+
+        // Per-rail validation: reject onchain destinations below the live
+        // Boltz floor before we even enqueue. Lightning has no practical
+        // floor (~21 sats), so we only gate onchain.
+        if (local_btcrewards_guess_dest_type($destination) === 'onchain') {
+            try {
+                $limits = $client->fetch_limits();
+            } catch (\moodle_exception $e) {
+                $limits = ['onchain_min' => 0];
+            }
+            if ($limits['onchain_min'] > 0 && $sats < $limits['onchain_min']) {
+                $minusd = $limits['onchain_min'] * $ratecents / 100000000 / 100;
+                throw new \moodle_exception('claim_onchain_below_min', 'local_btcrewards',
+                    '', number_format($minusd, 2));
+            }
         }
 
         $now = time();
-        $DB->insert_record('btcrewards_payout_queue', (object) [
+        $payoutid = $DB->insert_record('btcrewards_payout_queue', (object) [
             'userid'       => $userid,
-            'sats'         => $sincelast * $satsperpoint,
-            'destination'  => $destination['address'],
-            'dest_type'    => $destination['type'],
+            'usd_cents'    => $usdcents,
+            'btc_usd_rate' => $ratecents,
+            'sats'         => $sats,
+            'destination'  => $destination,
+            'dest_type'    => 'auto',
             'status'       => 'pending',
             'txid'         => null,
+            'preimage'     => null,
             'attempts'     => 0,
             'timecreated'  => $now,
             'timemodified' => $now,
         ]);
 
-        $this->source->set_last_payout_watermark($userid, $total);
+        foreach ($pointids as $pid) {
+            $DB->insert_record('btcrewards_payout_items', (object) [
+                'payoutid' => $payoutid,
+                'pointsid' => $pid,
+            ]);
+        }
+
+        return (int) $payoutid;
     }
 
     /**
-     * Drain the pending queue. Called by the scheduled task.
+     * Free the points consumed by a failed payout so they can be claimed again.
      *
-     * @return void
+     * The failed row stays in the queue as an audit record, but its
+     * btcrewards_payout_items links are dropped — which makes those points
+     * "unclaimed" again from the points_source's perspective.
+     *
+     * @throws \moodle_exception When the row doesn't belong to the user,
+     *                           isn't in failed state, or doesn't exist.
+     */
+    public function requeue_failed(int $payoutid, int $userid): void {
+        global $DB;
+
+        $row = $DB->get_record('btcrewards_payout_queue', ['id' => $payoutid], '*', MUST_EXIST);
+        if ((int) $row->userid !== $userid) {
+            throw new \moodle_exception('requeue_forbidden', 'local_btcrewards');
+        }
+        if ($row->status !== 'failed') {
+            throw new \moodle_exception('requeue_not_failed', 'local_btcrewards');
+        }
+
+        $DB->delete_records('btcrewards_payout_items', ['payoutid' => $payoutid]);
+        // Mark the row so the UI can distinguish "points still locked" from
+        // "points already refunded into the user's balance".
+        $row->status = 'requeued';
+        $row->timemodified = time();
+        $DB->update_record('btcrewards_payout_queue', $row);
+    }
+
+    /**
+     * Process the payout queue: submit pending rows to the payment service.
+     *
+     * Terminal states (paid/failed) arrive later via webhook.php.
      */
     public function process_queue(): void {
         global $DB;
@@ -119,41 +188,46 @@ class payout_engine {
         $rows = $DB->get_records('btcrewards_payout_queue', ['status' => 'pending']);
         foreach ($rows as $row) {
             if ((int) $row->attempts >= $maxattempts) {
+                $row->status = 'failed';
+                $row->timemodified = time();
+                $DB->update_record('btcrewards_payout_queue', $row);
                 continue;
             }
 
-            try {
-                $result = $client->pay(
-                    (int) $row->userid,
-                    (int) $row->sats,
-                    (string) $row->destination,
-                    (string) $row->dest_type
-                );
-            } catch (payment_exception $e) {
-                $result = ['success' => false, 'txid' => '', 'error' => $e->getMessage()];
-            }
+            $result = $client->pay((int) $row->sats, (string) $row->destination);
 
             $row->attempts     = (int) $row->attempts + 1;
             $row->timemodified = time();
-            if (!empty($result['success'])) {
-                $row->status = 'paid';
-                $row->txid   = $result['txid'];
-            } else if ($row->attempts >= $maxattempts) {
-                $row->status = 'failed';
+            if (!empty($result['tx_id'])) {
+                $row->txid = $result['tx_id'];
             }
+            if (!empty($result['dest_type'])) {
+                $row->dest_type = $result['dest_type'];
+            }
+
+            $servicestatus = $result['status'] ?? '';
+            $retryable     = (bool) ($result['retryable'] ?? true);
+
+            if ($servicestatus === payment_client::STATUS_SETTLED) {
+                // Rare: payment completed synchronously before webhook could race us.
+                $row->status = 'paid';
+            } else if ($servicestatus === payment_client::STATUS_FAILED) {
+                // Permanent failures (amount mismatch, bad destination) are marked
+                // terminal immediately — retrying won't change the outcome.
+                if (!$retryable) {
+                    $row->status = 'failed';
+                } else {
+                    $row->status = ($row->attempts >= $maxattempts) ? 'failed' : 'pending';
+                }
+            } else if ($servicestatus === payment_client::STATUS_PROCESSING ||
+                       $servicestatus === payment_client::STATUS_ACCEPTED) {
+                // Await webhook for terminal state.
+                $row->status = 'accepted';
+            } else {
+                $row->status = ($row->attempts >= $maxattempts) ? 'failed' : 'pending';
+            }
+
             $DB->update_record('btcrewards_payout_queue', $row);
         }
-    }
-
-    /**
-     * Resolve a user's preferred payout destination. Hook for profile/custom fields.
-     *
-     * @param int $userid
-     * @return array{address: string, type: string}|null
-     */
-    private function get_user_destination(int $userid) {
-        // TODO: resolve from user profile field. Scaffolded to return null by default.
-        unset($userid);
-        return null;
     }
 }

@@ -17,9 +17,7 @@
 defined('MOODLE_INTERNAL') || die();
 
 /**
- * Run plugin upgrade steps.
- *
- * @param int $oldversion Previously installed version number.
+ * @param int $oldversion
  * @return bool
  */
 function xmldb_local_btcrewards_upgrade($oldversion) {

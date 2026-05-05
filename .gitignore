@@ -1,3 +1,6 @@
+# Local dev environment (moodle-docker clone, moodle checkout)
+.dev/
+
 vendor/
 node_modules/
 *.log

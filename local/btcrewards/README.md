@@ -84,3 +84,26 @@ Response body:
 
 Any non-2xx response raises a `local_btcrewards\payment_exception`, which the
 payout engine catches and records as a failed attempt on the queue row.
+
+## Local development
+
+A `Makefile` at the repository root wires this plugin into
+[moodlehq/moodle-docker](https://github.com/moodlehq/moodle-docker) so you can
+spin up a throwaway Moodle site with the plugin mounted.
+
+```sh
+make init       # clone moodle-docker + moodle, symlink local/btcrewards
+make up         # start containers (Postgres + webserver + mail)
+make install    # run the Moodle installer (admin / Admin*123)
+# open http://localhost:8000
+
+make shell      # bash into the webserver container
+make cli CMD="admin/cli/purge_caches.php"
+make phpunit-init && make phpunit
+make down       # stop (keep DB) — or `make purge` to wipe volumes
+```
+
+Everything created by `make init` lives in `.dev/` and is gitignored. The
+plugin is symlinked from `.dev/moodle/local/btcrewards` back to this repo, so
+edits are reflected inside the container immediately — just run
+`make cli CMD="admin/cli/purge_caches.php"` after changing PHP.

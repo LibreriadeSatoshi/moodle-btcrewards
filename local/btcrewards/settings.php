@@ -33,19 +33,19 @@ if ($hassiteconfig) {
     ));
 
     $settings->add(new admin_setting_configtext(
-        'local_btcrewards/payout_threshold',
-        get_string('setting_payout_threshold', 'local_btcrewards'),
-        get_string('setting_payout_threshold_desc', 'local_btcrewards'),
-        500,
-        PARAM_INT
+        'local_btcrewards/min_payout_usd',
+        get_string('setting_min_payout_usd', 'local_btcrewards'),
+        get_string('setting_min_payout_usd_desc', 'local_btcrewards'),
+        '0.50',
+        PARAM_RAW_TRIMMED
     ));
 
     $settings->add(new admin_setting_configtext(
-        'local_btcrewards/sats_per_point',
-        get_string('setting_sats_per_point', 'local_btcrewards'),
-        get_string('setting_sats_per_point_desc', 'local_btcrewards'),
-        10,
-        PARAM_INT
+        'local_btcrewards/usd_per_point',
+        get_string('setting_usd_per_point', 'local_btcrewards'),
+        get_string('setting_usd_per_point_desc', 'local_btcrewards'),
+        '0.01',
+        PARAM_RAW_TRIMMED
     ));
 
     $settings->add(new admin_setting_configtext(
@@ -69,6 +69,20 @@ if ($hassiteconfig) {
         get_string('setting_payment_service_secret', 'local_btcrewards'),
         get_string('setting_payment_service_secret_desc', 'local_btcrewards'),
         ''
+    ));
+
+    $settings->add(new admin_setting_configpasswordunmask(
+        'local_btcrewards/webhook_secret',
+        get_string('setting_webhook_secret', 'local_btcrewards'),
+        get_string('setting_webhook_secret_desc', 'local_btcrewards'),
+        ''
+    ));
+
+    $webhookurl = (new moodle_url('/local/btcrewards/webhook.php'))->out(false);
+    $settings->add(new admin_setting_description(
+        'local_btcrewards/webhook_url_info',
+        get_string('setting_webhook_url', 'local_btcrewards'),
+        get_string('setting_webhook_url_desc', 'local_btcrewards', $webhookurl)
     ));
 
     $settings->add(new admin_setting_configtext(

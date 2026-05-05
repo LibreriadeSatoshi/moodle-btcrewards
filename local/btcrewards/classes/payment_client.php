@@ -7,7 +7,10 @@
 // (at your option) any later version.
 
 /**
- * HTTP client for the internal Lightning payment microservice.
+ * HTTP client for the internal payment microservice.
+ *
+ * The service classifies the destination itself (bolt11/bolt12/ln_address/onchain)
+ * and pushes terminal state back via webhook — the plugin no longer polls.
  *
  * @package    local_btcrewards
  * @copyright  2026 local_btcrewards contributors
@@ -25,7 +28,7 @@ class payment_exception extends \moodle_exception {
 }
 
 /**
- * REST client wrapping the payment microservice contract.
+ * REST client wrapping the payment microservice POST /pay contract.
  */
 class payment_client {
     /** @var string */
@@ -34,67 +37,119 @@ class payment_client {
     /** @var string */
     private $secret;
 
-    /**
-     * Construct the client from plugin configuration.
-     */
+    /** Initial state — submitted, nothing observable yet. */
+    public const STATUS_ACCEPTED = 'accepted';
+
+    /** In flight on Lightning or broadcast awaiting confirmations. */
+    public const STATUS_PROCESSING = 'processing';
+
+    /** Final, confirmed. */
+    public const STATUS_SETTLED = 'settled';
+
+    /** Terminal failure. */
+    public const STATUS_FAILED = 'failed';
+
     public function __construct() {
         $this->baseurl = rtrim((string) get_config('local_btcrewards', 'payment_service_url'), '/');
         $this->secret  = (string) get_config('local_btcrewards', 'payment_service_secret');
     }
 
     /**
-     * Request a payout from the payment service.
+     * Submit a new payment. The service auto-detects the destination type.
+     * Terminal state arrives later via the webhook, not via polling.
      *
-     * @param int    $userid       Moodle user id (for logging by caller).
-     * @param int    $sats         Amount to pay in satoshis.
-     * @param string $destination  Destination address/invoice/LN address.
-     * @param string $desttype     One of ln_address|onchain|bolt11.
-     * @return array{success: bool, txid: string, error: string}
+     * Never throws — transport / HTTP errors are reported as status=failed with
+     * a `retryable` flag so the caller can decide whether to retry.
+     *
+     * @param int    $sats
+     * @param string $destination  Bitcoin address, bolt11, bolt12 offer, or LN address.
+     * @return array{tx_id: string, status: string, dest_type: string, error: string, retryable: bool}
      */
-    public function pay(int $userid, int $sats, string $destination, string $desttype): array {
+    public function pay(int $sats, string $destination): array {
         $payload = json_encode([
             'amount_sats' => $sats,
             'destination' => $destination,
-            'dest_type'   => $desttype,
         ]);
 
-        $response = $this->request('POST', '/pay', $payload);
+        [$code, $raw] = $this->request('POST', '/pay', $payload);
 
+        // HTTP 4xx from the service = permanent (bad destination, bad amount).
+        // HTTP 5xx or transport error (code 0) = transient, worth retrying.
+        if ($code < 200 || $code >= 300) {
+            $detail = '';
+            $decoded = json_decode((string) $raw, true);
+            if (is_array($decoded)) {
+                $detail = (string) ($decoded['detail'] ?? $decoded['error'] ?? '');
+            }
+            return [
+                'tx_id'     => '',
+                'status'    => self::STATUS_FAILED,
+                'dest_type' => '',
+                'error'     => "HTTP $code: $detail",
+                'retryable' => ($code === 0 || $code >= 500),
+            ];
+        }
+
+        $response = json_decode((string) $raw, true) ?: [];
         return [
-            'success' => !empty($response['success']),
-            'txid'    => (string) ($response['txid'] ?? ''),
-            'error'   => (string) ($response['error'] ?? ''),
+            'tx_id'     => (string) ($response['tx_id'] ?? ''),
+            'status'    => (string) ($response['status'] ?? ''),
+            'dest_type' => (string) ($response['dest_type'] ?? ''),
+            'error'     => (string) ($response['error'] ?? ''),
+            // Default to retryable=true if the service omits the flag, so older
+            // service builds stay compatible.
+            'retryable' => (bool) ($response['retryable'] ?? true),
         ];
     }
 
     /**
-     * Fetch the status of a previously submitted payment.
+     * Fetch the current BTC/USD rate in cents per BTC from the payment service.
      *
-     * @param string $txid
-     * @return array{status: string, txid: string}
+     * @return int
+     * @throws \moodle_exception If the service is unreachable or can't resolve a rate.
      */
-    public function get_status(string $txid): array {
-        $response = $this->request('GET', '/status/' . rawurlencode($txid), null);
+    public function fetch_rate(): int {
+        [$code, $raw] = $this->request('GET', '/rate', null);
+        if ($code < 200 || $code >= 300) {
+            throw new \moodle_exception('error_rate_unavailable', 'local_btcrewards', '', "HTTP $code");
+        }
+        $decoded = json_decode((string) $raw, true) ?: [];
+        $cents = (int) ($decoded['cents_per_btc'] ?? 0);
+        if ($cents <= 0) {
+            throw new \moodle_exception('error_rate_unavailable', 'local_btcrewards', '', 'no rate in body');
+        }
+        return $cents;
+    }
+
+    /**
+     * Fetch current per-rail send limits in sats.
+     *
+     * @return array{onchain_min: int, lightning_min: int}
+     * @throws \moodle_exception If the service is unreachable.
+     */
+    public function fetch_limits(): array {
+        [$code, $raw] = $this->request('GET', '/limits', null);
+        if ($code < 200 || $code >= 300) {
+            throw new \moodle_exception('error_limits_unavailable', 'local_btcrewards', '', "HTTP $code");
+        }
+        $decoded = json_decode((string) $raw, true) ?: [];
         return [
-            'status' => (string) ($response['status'] ?? ''),
-            'txid'   => (string) ($response['txid'] ?? $txid),
+            'onchain_min'   => (int) ($decoded['onchain_send']['min_sat'] ?? 0),
+            'lightning_min' => (int) ($decoded['lightning_send']['min_sat'] ?? 0),
         ];
     }
 
     /**
-     * Perform an HTTP request using Moodle's curl wrapper.
-     *
-     * @param string      $method
-     * @param string      $path
-     * @param string|null $body
-     * @return array
-     * @throws payment_exception
+     * @return array{0: int, 1: string} HTTP code and raw body.
      */
     private function request(string $method, string $path, ?string $body): array {
         global $CFG;
         require_once($CFG->libdir . '/filelib.php');
 
-        $curl = new \curl();
+        // ignoresecurity: the payment service URL is an admin-configured internal
+        // endpoint and usually resolves to localhost/LAN, which Moodle's default
+        // SSRF blocklist would reject.
+        $curl = new \curl(['ignoresecurity' => true]);
         $curl->setHeader([
             'Content-Type: application/json',
             'Accept: application/json',
@@ -110,11 +165,6 @@ class payment_client {
 
         $info = $curl->get_info();
         $code = (int) ($info['http_code'] ?? 0);
-        if ($code < 200 || $code >= 300) {
-            throw new payment_exception('error_payment_http', 'local_btcrewards', '', $code);
-        }
-
-        $decoded = json_decode((string) $raw, true);
-        return is_array($decoded) ? $decoded : [];
+        return [$code, (string) $raw];
     }
 }

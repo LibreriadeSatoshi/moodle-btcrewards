@@ -1,47 +1,73 @@
 <?xml version="1.0" encoding="UTF-8" ?>
-<XMLDB PATH="local/btcrewards/db" VERSION="20260414" COMMENT="XMLDB file for local_btcrewards"
+<XMLDB PATH="local/btcrewards/db" VERSION="20260424" COMMENT="XMLDB file for local_btcrewards"
     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
     xsi:noNamespaceSchemaLocation="../../../lib/xmldb/xmldb.xsd"
 >
   <TABLES>
-    <TABLE NAME="btcrewards_points" COMMENT="Points awarded to users by the native points source.">
+    <TABLE NAME="btcrewards_points" COMMENT="Points awarded to users. Uses Moodle component+itemid pattern for dedup.">
       <FIELDS>
         <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
         <FIELD NAME="userid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="courseid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
         <FIELD NAME="points" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
-        <FIELD NAME="event_type" TYPE="char" LENGTH="100" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="component" TYPE="char" LENGTH="100" NOTNULL="true" SEQUENCE="false" COMMENT="Moodle table name: course, grade_items, badge"/>
+        <FIELD NAME="itemid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false" COMMENT="Row id in the component table"/>
         <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
       </FIELDS>
       <KEYS>
         <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
         <KEY NAME="fk_userid" TYPE="foreign" FIELDS="userid" REFTABLE="user" REFFIELDS="id"/>
+        <KEY NAME="fk_courseid" TYPE="foreign" FIELDS="courseid" REFTABLE="course" REFFIELDS="id"/>
       </KEYS>
       <INDEXES>
-        <INDEX NAME="ix_user_time" UNIQUE="false" FIELDS="userid, timecreated"/>
+        <INDEX NAME="uix_user_component_item" UNIQUE="true" FIELDS="userid, component, itemid"/>
+        <INDEX NAME="ix_user_course" UNIQUE="false" FIELDS="userid, courseid"/>
       </INDEXES>
     </TABLE>
-    <TABLE NAME="btcrewards_payout_watermark" COMMENT="Tracks the total points at the time of the last payout per user.">
+    <TABLE NAME="btcrewards_payout_items" COMMENT="Junction linking each payout to the point rows it consumed.">
       <FIELDS>
         <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
-        <FIELD NAME="userid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
-        <FIELD NAME="points" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="payoutid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="pointsid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+        <KEY NAME="fk_payoutid" TYPE="foreign" FIELDS="payoutid" REFTABLE="btcrewards_payout_queue" REFFIELDS="id"/>
+        <KEY NAME="fk_pointsid" TYPE="foreign" FIELDS="pointsid" REFTABLE="btcrewards_points" REFFIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="uix_payout_points" UNIQUE="true" FIELDS="payoutid, pointsid"/>
+        <INDEX NAME="ix_pointsid" UNIQUE="false" FIELDS="pointsid"/>
+      </INDEXES>
+    </TABLE>
+    <TABLE NAME="btcrewards_course_config" COMMENT="Per-course override of reward settings. Absence of a row means rewards are disabled for that course.">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="courseid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="enabled" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="points_course_completed" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="points_quiz_passed" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="points_badge_awarded" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false"/>
         <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
       </FIELDS>
       <KEYS>
         <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
-        <KEY NAME="uk_userid" TYPE="unique" FIELDS="userid"/>
-        <KEY NAME="fk_userid" TYPE="foreign" FIELDS="userid" REFTABLE="user" REFFIELDS="id"/>
+        <KEY NAME="uk_courseid" TYPE="unique" FIELDS="courseid"/>
+        <KEY NAME="fk_courseid" TYPE="foreign" FIELDS="courseid" REFTABLE="course" REFFIELDS="id"/>
       </KEYS>
     </TABLE>
-    <TABLE NAME="btcrewards_payout_queue" COMMENT="Queue of pending and processed Lightning payouts.">
+    <TABLE NAME="btcrewards_payout_queue" COMMENT="Queue of pending and processed payouts. Points are denominated in USD cents; sats are computed at claim time using the locked BTC/USD rate. txid is the correlation key for webhook events.">
       <FIELDS>
         <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
         <FIELD NAME="userid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
-        <FIELD NAME="sats" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
-        <FIELD NAME="destination" TYPE="char" LENGTH="255" NOTNULL="true" SEQUENCE="false"/>
-        <FIELD NAME="dest_type" TYPE="char" LENGTH="20" NOTNULL="true" SEQUENCE="false" COMMENT="ln_address|onchain|bolt11"/>
-        <FIELD NAME="status" TYPE="char" LENGTH="20" NOTNULL="true" DEFAULT="pending" SEQUENCE="false" COMMENT="pending|paid|failed"/>
-        <FIELD NAME="txid" TYPE="char" LENGTH="255" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="usd_cents" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false" COMMENT="USD value being claimed, in cents (e.g. 500 = $5.00)."/>
+        <FIELD NAME="btc_usd_rate" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false" COMMENT="BTC/USD rate locked at claim time, in cents per BTC (e.g. 6000000 = $60,000/BTC)."/>
+        <FIELD NAME="sats" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false" COMMENT="Sats computed at claim time from usd_cents and btc_usd_rate; this is the amount the wallet actually pays."/>
+        <FIELD NAME="destination" TYPE="text" NOTNULL="true" SEQUENCE="false" COMMENT="Bitcoin address, bolt11 invoice, bolt12 offer, or LN address."/>
+        <FIELD NAME="dest_type" TYPE="char" LENGTH="20" NOTNULL="true" SEQUENCE="false" COMMENT="Inferred by the payment service; stored for display."/>
+        <FIELD NAME="status" TYPE="char" LENGTH="20" NOTNULL="true" DEFAULT="pending" SEQUENCE="false" COMMENT="pending|accepted|paid|failed|requeued"/>
+        <FIELD NAME="txid" TYPE="char" LENGTH="255" NOTNULL="false" SEQUENCE="false" COMMENT="Liquid swap lockup txid (LN) or Bitcoin txid (onchain); correlates webhook events."/>
+        <FIELD NAME="preimage" TYPE="char" LENGTH="255" NOTNULL="false" SEQUENCE="false" COMMENT="Lightning preimage, populated on settlement webhook for LN payments."/>
         <FIELD NAME="attempts" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
         <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
         <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
@@ -52,6 +78,7 @@
       </KEYS>
       <INDEXES>
         <INDEX NAME="ix_status" UNIQUE="false" FIELDS="status"/>
+        <INDEX NAME="ix_txid" UNIQUE="false" FIELDS="txid"/>
       </INDEXES>
     </TABLE>
   </TABLES>
