@@ -176,7 +176,7 @@ class payout_engine {
             'sats'         => $sats,
             'destination'  => $destination,
             'dest_type'    => 'auto',
-            'status'       => 'pending',
+            'status'       => payout_status::PENDING,
             'txid'         => null,
             'preimage'     => null,
             'attempts'     => 0,
@@ -209,14 +209,14 @@ class payout_engine {
         if ((int) $row->userid !== $userid) {
             throw new \moodle_exception('requeue_forbidden', 'local_btcrewards');
         }
-        if ($row->status !== 'failed') {
+        if ($row->status !== payout_status::FAILED) {
             throw new \moodle_exception('requeue_not_failed', 'local_btcrewards');
         }
 
         $DB->delete_records('btcrewards_payout_items', ['payoutid' => $payoutid]);
         // Mark the row so the UI can distinguish "points still locked" from
         // "points already refunded into the user's balance".
-        $row->status = 'requeued';
+        $row->status = payout_status::REQUEUED;
         $row->timemodified = time();
         $DB->update_record('btcrewards_payout_queue', $row);
     }
@@ -224,7 +224,14 @@ class payout_engine {
     /**
      * Process the payout queue: submit pending rows to the payment service.
      *
-     * Terminal states (paid/failed) arrive later via webhook.php.
+     * Terminal states (paid/failed) usually arrive later via webhook.php; this
+     * loop only moves rows from PENDING to ACCEPTED (or PAID/FAILED if the
+     * service responds synchronously).
+     *
+     * Each row is processed inside a try/finally that guarantees the row
+     * update — if anything between pay() and the status decision throws, we
+     * still persist the attempts counter and any tx_id we received, so the
+     * next cron tick can't accidentally re-pay.
      */
     public function process_queue(): void {
         global $DB;
@@ -232,49 +239,66 @@ class payout_engine {
         $maxattempts = (int) get_config('local_btcrewards', 'max_attempts');
         $client = new payment_client();
 
-        $rows = $DB->get_records('btcrewards_payout_queue', ['status' => 'pending']);
+        $rows = $DB->get_records('btcrewards_payout_queue', ['status' => payout_status::PENDING]);
         foreach ($rows as $row) {
             if ((int) $row->attempts >= $maxattempts) {
-                $row->status = 'failed';
+                $row->status = payout_status::FAILED;
                 $row->timemodified = time();
                 $DB->update_record('btcrewards_payout_queue', $row);
                 continue;
             }
 
-            $result = $client->pay((int) $row->sats, (string) $row->destination);
-
-            $row->attempts     = (int) $row->attempts + 1;
-            $row->timemodified = time();
-            if (!empty($result['tx_id'])) {
-                $row->txid = $result['tx_id'];
-            }
-            if (!empty($result['dest_type'])) {
-                $row->dest_type = $result['dest_type'];
-            }
-
-            $servicestatus = $result['status'] ?? '';
-            $retryable     = (bool) ($result['retryable'] ?? true);
-
-            if ($servicestatus === payment_client::STATUS_SETTLED) {
-                // Rare: payment completed synchronously before webhook could race us.
-                $row->status = 'paid';
-            } else if ($servicestatus === payment_client::STATUS_FAILED) {
-                // Permanent failures (amount mismatch, bad destination) are marked
-                // terminal immediately — retrying won't change the outcome.
-                if (!$retryable) {
-                    $row->status = 'failed';
-                } else {
-                    $row->status = ($row->attempts >= $maxattempts) ? 'failed' : 'pending';
+            try {
+                $result = $client->pay((int) $row->sats, (string) $row->destination);
+                $row->attempts     = (int) $row->attempts + 1;
+                $row->timemodified = time();
+                if (!empty($result['tx_id'])) {
+                    $row->txid = $result['tx_id'];
                 }
-            } else if ($servicestatus === payment_client::STATUS_PROCESSING ||
-                       $servicestatus === payment_client::STATUS_ACCEPTED) {
-                // Await webhook for terminal state.
-                $row->status = 'accepted';
-            } else {
-                $row->status = ($row->attempts >= $maxattempts) ? 'failed' : 'pending';
+                if (!empty($result['dest_type'])) {
+                    $row->dest_type = $result['dest_type'];
+                }
+                $row->status = $this->next_status($result, (int) $row->attempts, $maxattempts);
+            } catch (\Throwable $e) {
+                // pay() doesn't throw under normal HTTP/timeout conditions, so
+                // hitting this means an unexpected error inside the client or
+                // status mapping. Burn an attempt and keep moving.
+                debugging('payout submit error: ' . $e->getMessage(), DEBUG_DEVELOPER);
+                $row->attempts = (int) $row->attempts + 1;
+                $row->timemodified = time();
+                if ((int) $row->attempts >= $maxattempts) {
+                    $row->status = payout_status::FAILED;
+                }
+            } finally {
+                $DB->update_record('btcrewards_payout_queue', $row);
             }
-
-            $DB->update_record('btcrewards_payout_queue', $row);
         }
+    }
+
+    /**
+     * Map the service's /pay response onto a plugin-side queue status.
+     */
+    private function next_status(array $result, int $attempts, int $maxattempts): string {
+        $servicestatus = $result['status'] ?? '';
+        $retryable     = (bool) ($result['retryable'] ?? true);
+
+        if ($servicestatus === payment_client::STATUS_SETTLED) {
+            // Rare: payment completed synchronously before the webhook raced us.
+            return payout_status::PAID;
+        }
+        if ($servicestatus === payment_client::STATUS_FAILED) {
+            // Permanent failures (amount mismatch, bad destination) are
+            // marked terminal immediately — retrying won't change the outcome.
+            if (!$retryable || $attempts >= $maxattempts) {
+                return payout_status::FAILED;
+            }
+            return payout_status::PENDING;
+        }
+        if ($servicestatus === payment_client::STATUS_PROCESSING ||
+            $servicestatus === payment_client::STATUS_ACCEPTED) {
+            return payout_status::ACCEPTED;
+        }
+        // Unrecognised status — same as a transient failure.
+        return $attempts >= $maxattempts ? payout_status::FAILED : payout_status::PENDING;
     }
 }

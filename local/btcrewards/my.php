@@ -325,12 +325,12 @@ if (empty($queue)) {
     echo html_writer::tag('p', get_string('my_empty_queue', 'local_btcrewards'));
 } else {
     $statusclass = [
-        'pending'    => 'badge-warning bg-warning text-dark',
-        'accepted'   => 'badge-info bg-info text-white',
-        'processing' => 'badge-primary bg-primary text-white',
-        'paid'       => 'badge-success bg-success text-white',
-        'failed'     => 'badge-danger bg-danger text-white',
-        'requeued'   => 'badge-secondary bg-secondary text-white',
+        \local_btcrewards\payout_status::PENDING  => 'badge-warning bg-warning text-dark',
+        \local_btcrewards\payout_status::ACCEPTED => 'badge-info bg-info text-white',
+        'processing'                              => 'badge-primary bg-primary text-white',
+        \local_btcrewards\payout_status::PAID     => 'badge-success bg-success text-white',
+        \local_btcrewards\payout_status::FAILED   => 'badge-danger bg-danger text-white',
+        \local_btcrewards\payout_status::REQUEUED => 'badge-secondary bg-secondary text-white',
     ];
     foreach ($queue as $row) {
         $statuslabel = get_string('payout_status_' . $row->status, 'local_btcrewards');
@@ -364,7 +364,7 @@ if (empty($queue)) {
 
         // Failed → offer the Try-again button. Requeued → show a note that
         // points are already back in the balance.
-        if ($row->status === 'failed') {
+        if ($row->status === \local_btcrewards\payout_status::FAILED) {
             $retry  = html_writer::start_tag('form', [
                 'method' => 'post',
                 'action' => $pageurl->out(false),
@@ -381,7 +381,7 @@ if (empty($queue)) {
                 ['class' => 'ms-2 text-muted']);
             $retry .= html_writer::end_tag('form');
             echo $retry;
-        } else if ($row->status === 'requeued') {
+        } else if ($row->status === \local_btcrewards\payout_status::REQUEUED) {
             echo html_writer::tag('div',
                 '↩ ' . get_string('my_requeued_note', 'local_btcrewards'),
                 ['class' => 'mt-3 small text-muted']);

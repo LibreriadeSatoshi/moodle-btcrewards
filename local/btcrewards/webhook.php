@@ -81,11 +81,15 @@ if (!$row) {
 }
 
 // Idempotency: if already terminal, acknowledge without rewriting state.
-if (in_array($row->status, ['paid', 'failed'], true)) {
+if (in_array($row->status,
+    [\local_btcrewards\payout_status::PAID, \local_btcrewards\payout_status::FAILED],
+    true)) {
     local_btcrewards_webhook_respond(200, ['received' => true, 'duplicate' => true]);
 }
 
-$row->status = ($status === 'settled') ? 'paid' : 'failed';
+$row->status = ($status === 'settled')
+    ? \local_btcrewards\payout_status::PAID
+    : \local_btcrewards\payout_status::FAILED;
 $row->timemodified = time();
 if ($preimage !== '') {
     $row->preimage = $preimage;
