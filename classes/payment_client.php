@@ -154,10 +154,18 @@ class payment_client {
         global $CFG;
         require_once($CFG->libdir . '/filelib.php');
 
+        if ($this->baseurl === '') {
+            return [0, ''];
+        }
+
         // ignoresecurity: the payment service URL is an admin-configured internal
         // endpoint and usually resolves to localhost/LAN, which Moodle's default
         // SSRF blocklist would reject.
         $curl = new \curl(['ignoresecurity' => true]);
+        $curl->setopt([
+            'CURLOPT_CONNECTTIMEOUT_MS' => 2000,
+            'CURLOPT_TIMEOUT_MS'        => 3000,
+        ]);
         $curl->setHeader([
             'Content-Type: application/json',
             'Accept: application/json',
