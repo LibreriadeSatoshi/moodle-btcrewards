@@ -114,6 +114,7 @@ $string['my_requeued_note'] = 'Los puntos de este intento volvieron a tu saldo.'
 $string['payout_status_requeued'] = 'Puntos devueltos';
 $string['requeue_forbidden'] = 'Solo podés reintentar tus propios cobros.';
 $string['requeue_not_failed'] = 'Solo los cobros fallidos se pueden reintentar.';
+$string['claim_concurrent'] = 'Ya hay otro cobro en curso para estos puntos. Recargá la página y probá de nuevo.';
 $string['my_col_claimed'] = 'Estado';
 $string['my_status_claimed'] = 'Reclamado';
 $string['my_status_unclaimed'] = 'Sin reclamar';

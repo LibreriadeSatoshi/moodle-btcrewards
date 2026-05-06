@@ -45,12 +45,20 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
     local_btcrewards_webhook_respond(405, ['error' => 'method not allowed']);
 }
 
+// Cap body size before reading it into memory. Real webhook payloads are
+// well under a kilobyte; anything larger is either misconfigured or hostile.
+$maxbody = 16384;
+$contentlength = (int) ($_SERVER['CONTENT_LENGTH'] ?? 0);
+if ($contentlength > $maxbody) {
+    local_btcrewards_webhook_respond(413, ['error' => 'request body too large']);
+}
+
 $secret = (string) get_config('local_btcrewards', 'webhook_secret');
 if ($secret === '') {
     local_btcrewards_webhook_respond(503, ['error' => 'webhook_secret not configured']);
 }
 
-$body = (string) file_get_contents('php://input');
+$body = (string) file_get_contents('php://input', false, null, 0, $maxbody);
 $provided = (string) ($_SERVER['HTTP_X_WEBHOOK_SIGNATURE'] ?? '');
 $expected = 'sha256=' . hash_hmac('sha256', $body, $secret);
 

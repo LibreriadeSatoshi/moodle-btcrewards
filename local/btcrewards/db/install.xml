@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8" ?>
-<XMLDB PATH="local/btcrewards/db" VERSION="20260424" COMMENT="XMLDB file for local_btcrewards"
+<XMLDB PATH="local/btcrewards/db" VERSION="20260506" COMMENT="XMLDB file for local_btcrewards"
     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
     xsi:noNamespaceSchemaLocation="../../../lib/xmldb/xmldb.xsd"
 >
@@ -24,7 +24,7 @@
         <INDEX NAME="ix_user_course" UNIQUE="false" FIELDS="userid, courseid"/>
       </INDEXES>
     </TABLE>
-    <TABLE NAME="btcrewards_payout_items" COMMENT="Junction linking each payout to the point rows it consumed.">
+    <TABLE NAME="btcrewards_payout_items" COMMENT="Junction linking each payout to the point rows it consumed. The unique index on pointsid enforces that any given point can only be linked to one queue row at a time — concurrent claim() calls hit this constraint and roll back, preventing double-pay.">
       <FIELDS>
         <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
         <FIELD NAME="payoutid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
@@ -37,7 +37,7 @@
       </KEYS>
       <INDEXES>
         <INDEX NAME="uix_payout_points" UNIQUE="true" FIELDS="payoutid, pointsid"/>
-        <INDEX NAME="ix_pointsid" UNIQUE="false" FIELDS="pointsid"/>
+        <INDEX NAME="uix_pointsid" UNIQUE="true" FIELDS="pointsid"/>
       </INDEXES>
     </TABLE>
     <TABLE NAME="btcrewards_course_config" COMMENT="Per-course override of reward settings. Absence of a row means rewards are disabled for that course.">

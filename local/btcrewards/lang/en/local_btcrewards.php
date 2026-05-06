@@ -118,6 +118,7 @@ $string['my_requeued_note'] = 'Points from this attempt were returned to your ba
 $string['payout_status_requeued'] = 'Points returned';
 $string['requeue_forbidden'] = 'You can only retry your own payouts.';
 $string['requeue_not_failed'] = 'Only failed payouts can be retried.';
+$string['claim_concurrent'] = 'Another claim for these points is already in progress. Refresh the page and try again.';
 $string['my_col_claimed'] = 'Status';
 $string['my_status_claimed'] = 'Claimed';
 $string['my_status_unclaimed'] = 'Unclaimed';

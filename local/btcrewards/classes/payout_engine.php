@@ -71,6 +71,8 @@ class payout_engine {
      * @throws \moodle_exception When misconfigured, below threshold, or missing address.
      */
     public function claim(int $userid, string $destination): int {
+        global $DB;
+
         $destination = $this->validate_destination($destination);
         $usdcents    = $this->compute_claim_value($userid);
 
@@ -83,7 +85,19 @@ class payout_engine {
         [$ratecents, $sats] = $this->lock_rate_and_sats($usdcents, $client);
         $this->enforce_onchain_floor($destination, $sats, $ratecents, $client);
 
-        return $this->persist_claim($userid, $usdcents, $ratecents, $sats, $destination, $pointids);
+        // Two parallel claim() calls (e.g. a double-clicked submit) can both
+        // pass the threshold check above before either inserts. The unique
+        // index on btcrewards_payout_items.pointsid means the loser's items
+        // insert blows up; wrapping the writes in a transaction means the
+        // loser's queue row also rolls back, leaving no orphan to be paid.
+        $transaction = $DB->start_delegated_transaction();
+        try {
+            $payoutid = $this->persist_claim($userid, $usdcents, $ratecents, $sats, $destination, $pointids);
+            $transaction->allow_commit();
+            return $payoutid;
+        } catch (\dml_write_exception $e) {
+            $transaction->rollback(new \moodle_exception('claim_concurrent', 'local_btcrewards'));
+        }
     }
 
     /**
