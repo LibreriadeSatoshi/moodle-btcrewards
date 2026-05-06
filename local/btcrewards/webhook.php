@@ -71,6 +71,15 @@ if (!is_array($payload)) {
     local_btcrewards_webhook_respond(400, ['error' => 'invalid json']);
 }
 
+// Replay-window: the service stamps each delivery with a fresh `timestamp`
+// and re-signs. Reject bodies whose timestamp is missing or > 5 min away
+// from now (in either direction; clock-skew tolerant).
+$ts = (int) ($payload['timestamp'] ?? 0);
+$skew = abs(time() - $ts);
+if ($ts === 0 || $skew > 300) {
+    local_btcrewards_webhook_respond(401, ['error' => 'timestamp out of window', 'skew' => $skew]);
+}
+
 $txid   = (string) ($payload['tx_id'] ?? '');
 $status = (string) ($payload['status'] ?? '');
 $preimage = isset($payload['preimage']) ? (string) $payload['preimage'] : '';
