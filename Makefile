@@ -24,7 +24,7 @@ SHELL := /bin/bash
 DEV_DIR            := $(CURDIR)/.dev
 MOODLE_DOCKER_DIR  := $(DEV_DIR)/moodle-docker
 MOODLE_SRC_DIR     := $(DEV_DIR)/moodle
-PLUGIN_SRC_DIR     := $(CURDIR)/local/btcrewards
+PLUGIN_SRC_DIR     := $(CURDIR)
 LOCAL_YML          := $(DEV_DIR)/local.yml
 
 MOODLE_BRANCH      ?= MOODLE_404_STABLE
