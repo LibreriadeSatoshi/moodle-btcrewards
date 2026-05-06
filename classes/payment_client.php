@@ -109,11 +109,16 @@ class payment_client {
      * @throws \moodle_exception If the service is unreachable or can't resolve a rate.
      */
     public function fetch_rate(): int {
+        $cache = \cache::make('local_btcrewards', 'service_rate');
+        if (($cents = $cache->get('cents')) !== false) {
+            return (int) $cents;
+        }
         $body = $this->get_json('/rate', 'error_rate_unavailable');
         $cents = (int) ($body['cents_per_btc'] ?? 0);
         if ($cents <= 0) {
             throw new \moodle_exception('error_rate_unavailable', 'local_btcrewards', '', 'no rate in body');
         }
+        $cache->set('cents', $cents);
         return $cents;
     }
 
@@ -124,11 +129,17 @@ class payment_client {
      * @throws \moodle_exception If the service is unreachable.
      */
     public function fetch_limits(): array {
+        $cache = \cache::make('local_btcrewards', 'service_limits');
+        if (($hit = $cache->get('rails')) !== false) {
+            return $hit;
+        }
         $body = $this->get_json('/limits', 'error_limits_unavailable');
-        return [
+        $rails = [
             'onchain_min'   => (int) ($body['onchain_send']['min_sat'] ?? 0),
             'lightning_min' => (int) ($body['lightning_send']['min_sat'] ?? 0),
         ];
+        $cache->set('rails', $rails);
+        return $rails;
     }
 
     /**
