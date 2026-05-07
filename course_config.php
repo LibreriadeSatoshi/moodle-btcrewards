@@ -21,7 +21,9 @@ $course = get_course($courseid);
 
 require_login($course);
 $context = context_course::instance($course->id);
-require_capability('moodle/course:update', $context);
+if (!is_siteadmin()) {
+    throw new moodle_exception('accessdenied', 'admin');
+}
 
 $pageurl = new moodle_url('/local/btcrewards/course_config.php', ['courseid' => $course->id]);
 $PAGE->set_url($pageurl);

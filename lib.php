@@ -105,7 +105,7 @@ function local_btcrewards_render_navbar_output(renderer_base $renderer) {
 }
 
 function local_btcrewards_extend_navigation_course(navigation_node $navigation, stdClass $course, context $context) {
-    if (!has_capability('moodle/course:update', $context)) {
+    if (!is_siteadmin()) {
         return;
     }
     $url = new moodle_url('/local/btcrewards/course_config.php', ['courseid' => $course->id]);
