@@ -60,7 +60,7 @@ if ($hassiteconfig) {
         'local_btcrewards/payment_service_url',
         get_string('setting_payment_service_url', 'local_btcrewards'),
         get_string('setting_payment_service_url_desc', 'local_btcrewards'),
-        'http://10.0.0.2:3000',
+        '',
         PARAM_URL
     ));
 
