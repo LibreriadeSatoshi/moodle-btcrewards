@@ -97,10 +97,20 @@ function local_btcrewards_render_navbar_output(renderer_base $renderer) {
         return '';
     }
     $url = new moodle_url('/local/btcrewards/my.php');
+    $label = get_string('my_nav', 'local_btcrewards');
+    $svg = '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">'
+    . '<circle cx="12" cy="12" r="8.25" stroke="currentColor" stroke-width="1.5"/>'
+    . '<text x="12" y="17" text-anchor="middle" font-family="Georgia, \'Times New Roman\', serif" font-weight="600" font-size="13" fill="currentColor">&#8383;</text>'
+    . '</svg>';
     return html_writer::link(
         $url,
-        get_string('my_nav', 'local_btcrewards'),
-        ['class' => 'nav-link', 'title' => get_string('my_nav', 'local_btcrewards')]
+        $svg,
+        [
+            'class' => 'rui-topbar-special-btn rui-tooltip--bottom text-decoration-none',
+            'aria-label' => $label,
+            'data-title' => $label,
+            'data-bs-placement' => 'left',
+        ]
     );
 }
 
