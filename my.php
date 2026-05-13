@@ -283,7 +283,7 @@ if (empty($allpoints)) {
 
         $coursepoints = array_sum(array_column($rows, 'points'));
 
-        echo html_writer::start_div('card mb-3');
+        echo html_writer::start_div('card mb-3 overflow-hidden');
         echo html_writer::start_div('card-header d-flex justify-content-between align-items-center');
         echo html_writer::tag('strong', $cname);
         echo html_writer::tag('span', $coursepoints . ' ' . get_string('my_col_points', 'local_btcrewards'),
@@ -301,6 +301,11 @@ if (empty($allpoints)) {
         ];
         foreach ($rows as $row) {
             $eventlabel = get_string('component_' . $row->component, 'local_btcrewards');
+            $resource = local_btcrewards_resource_link(
+                $row->component, (int) $row->itemid, (int) $row->courseid);
+            if ($resource !== '') {
+                $eventlabel .= ': ' . $resource;
+            }
             $claimedbadge = $row->_claimed
                 ? html_writer::tag('span', get_string('my_status_claimed', 'local_btcrewards'),
                     ['class' => 'badge bg-success text-white'])

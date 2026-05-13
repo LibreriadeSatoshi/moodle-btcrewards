@@ -114,6 +114,38 @@ function local_btcrewards_render_navbar_output(renderer_base $renderer) {
     );
 }
 
+/**
+ * Build a link to the Moodle resource that earned a points row, if any.
+ * Returns an HTML <a> string, or '' for components without a meaningful link
+ * (e.g. 'course' — the per-course card header already names the course).
+ */
+function local_btcrewards_resource_link(string $component, int $itemid, int $courseid): string {
+    global $CFG, $DB;
+    if ($component === 'grade_items') {
+        require_once($CFG->libdir . '/gradelib.php');
+        $gi = grade_item::fetch(['id' => $itemid]);
+        if (!$gi || $gi->itemtype !== 'mod') {
+            return '';
+        }
+        $cm = get_coursemodule_from_instance($gi->itemmodule, $gi->iteminstance,
+            $courseid, false, IGNORE_MISSING);
+        if (!$cm) {
+            return '';
+        }
+        $url = new moodle_url("/mod/{$gi->itemmodule}/view.php", ['id' => $cm->id]);
+        return html_writer::link($url, format_string($gi->itemname), ['target' => '_blank']);
+    }
+    if ($component === 'badge') {
+        $badge = $DB->get_record('badge', ['id' => $itemid]);
+        if (!$badge) {
+            return '';
+        }
+        $url = new moodle_url('/badges/overview.php', ['id' => $itemid]);
+        return html_writer::link($url, format_string($badge->name), ['target' => '_blank']);
+    }
+    return '';
+}
+
 function local_btcrewards_extend_navigation_course(navigation_node $navigation, stdClass $course, context $context) {
     if (!is_siteadmin()) {
         return;

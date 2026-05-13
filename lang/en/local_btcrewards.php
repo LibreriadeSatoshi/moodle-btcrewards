@@ -38,11 +38,7 @@ $string['setting_webhook_secret_desc'] = 'Shared secret used to verify the X-Web
 $string['setting_webhook_url'] = 'Webhook URL';
 $string['setting_webhook_url_desc'] = 'Configure the payment service\'s MOODLE_WEBHOOK_URL to POST terminal payout events to: <code>{$a}</code>';
 $string['setting_points_course_completed'] = 'Points for course completion';
-$string['setting_points_course_completed_desc'] = 'Default points for course completion. Can be overridden per course via Course → More → Bitcoin rewards.';
-$string['setting_points_quiz_passed'] = 'Points for passing a quiz';
-$string['setting_points_quiz_passed_desc'] = 'Default points for passing a graded item (grade at or above pass mark). Can be overridden per course.';
-$string['setting_points_badge_awarded'] = 'Points for earning a badge';
-$string['setting_points_badge_awarded_desc'] = 'Default points for earning a badge. Can be overridden per course.';
+$string['setting_points_course_completed_desc'] = 'Points awarded when a user completes the course. Set per course on Course → More → Bitcoin rewards.';
 
 $string['task_process_payout_queue'] = 'Process Bitcoin rewards payout queue';
 
@@ -56,6 +52,12 @@ $string['course_config_enabled_help'] = 'When unchecked, no points are awarded f
 $string['course_config_override'] = 'Points awarded';
 $string['course_config_override_help'] = 'How many points this course awards for the event. Leave empty (or 0) to award nothing for this event in this course.';
 $string['course_config_must_be_int'] = 'Must be a non-negative integer or left empty.';
+$string['course_config_quizzes_heading'] = 'Per-quiz rewards';
+$string['course_config_quizzes_help'] = 'Points to award when a user passes each graded item. Leave empty (or 0) for no reward.';
+$string['course_config_quizzes_empty'] = 'No graded items in this course yet.';
+$string['course_config_badges_heading'] = 'Per-badge rewards';
+$string['course_config_badges_help'] = 'Points to award when a user earns each course badge. Leave empty (or 0) for no reward. Site-wide badges are not eligible.';
+$string['course_config_badges_empty'] = 'No course badges defined yet.';
 
 $string['my_title'] = 'My Bitcoin rewards';
 $string['my_nav'] = 'My Bitcoin rewards';

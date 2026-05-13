@@ -34,11 +34,7 @@ $string['setting_payment_service_url_desc'] = 'URL base del microservicio intern
 $string['setting_payment_service_secret'] = 'Secreto del servicio de pago';
 $string['setting_payment_service_secret_desc'] = 'Secreto compartido enviado al servicio de pago mediante el encabezado X-Internal-Token.';
 $string['setting_points_course_completed'] = 'Puntos por completar un curso';
-$string['setting_points_course_completed_desc'] = 'Puntos por defecto al completar un curso. Se puede sobreescribir por curso en Curso → Más → Recompensas Bitcoin.';
-$string['setting_points_quiz_passed'] = 'Puntos por aprobar un cuestionario';
-$string['setting_points_quiz_passed_desc'] = 'Puntos por defecto al aprobar un elemento calificado (calificación igual o superior a la nota de aprobación). Se puede sobreescribir por curso.';
-$string['setting_points_badge_awarded'] = 'Puntos por obtener una insignia';
-$string['setting_points_badge_awarded_desc'] = 'Puntos por defecto al obtener una insignia. Se puede sobreescribir por curso.';
+$string['setting_points_course_completed_desc'] = 'Puntos otorgados al completar un curso. Se configura por curso en Curso → Más → Recompensas Bitcoin.';
 
 $string['task_process_payout_queue'] = 'Procesar cola de pagos de recompensas Bitcoin';
 
@@ -52,6 +48,12 @@ $string['course_config_enabled_help'] = 'Si está desmarcado, no se otorgan punt
 $string['course_config_override'] = 'Puntos otorgados';
 $string['course_config_override_help'] = 'Cuántos puntos otorga este curso para el evento. Dejá vacío (o 0) para no dar puntos por este evento en este curso.';
 $string['course_config_must_be_int'] = 'Debe ser un número entero no negativo o dejarse vacío.';
+$string['course_config_quizzes_heading'] = 'Recompensas por cuestionario';
+$string['course_config_quizzes_help'] = 'Puntos a otorgar cuando un usuario aprueba cada elemento calificado. Dejá vacío (o 0) para no otorgar puntos.';
+$string['course_config_quizzes_empty'] = 'Este curso aún no tiene elementos calificables.';
+$string['course_config_badges_heading'] = 'Recompensas por insignia';
+$string['course_config_badges_help'] = 'Puntos a otorgar cuando un usuario obtiene cada insignia del curso. Dejá vacío (o 0) para no otorgar puntos. Las insignias del sitio no son elegibles.';
+$string['course_config_badges_empty'] = 'Este curso aún no tiene insignias.';
 
 $string['my_title'] = 'Mis recompensas Bitcoin';
 $string['my_nav'] = 'Mis recompensas Bitcoin';

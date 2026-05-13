@@ -18,40 +18,24 @@ namespace local_btcrewards;
 
 defined('MOODLE_INTERNAL') || die();
 
-/**
- * Translates Moodle core events into points awards.
- */
 class observer {
-    /**
-     * Award points for course completion.
-     *
-     * @param \core\event\course_completed $event
-     * @return void
-     */
     public static function course_completed(\core\event\course_completed $event): void {
         $userid   = (int) $event->relateduserid;
         $courseid = (int) $event->courseid;
-        $points   = course_config::resolve_points($courseid, 'points_course_completed');
+        $points   = course_config::course_completion_points($courseid);
         if ($points <= 0) {
             return;
         }
         (new payout_engine())->award_points($userid, $courseid, $points, 'course', $courseid);
     }
 
-    /**
-     * Award points for a passing grade.
-     *
-     * @param \core\event\user_graded $event
-     * @return void
-     */
     public static function user_graded(\core\event\user_graded $event): void {
         global $CFG;
         require_once($CFG->libdir . '/gradelib.php');
 
         $userid   = (int) $event->relateduserid;
         $courseid = (int) $event->courseid;
-        $points = course_config::resolve_points($courseid, 'points_quiz_passed');
-        if ($points <= 0) {
+        if (!course_config::is_course_enabled($courseid)) {
             return;
         }
 
@@ -71,20 +55,26 @@ class observer {
         }
 
         $gradeitemid = (int) $gradeitem->id;
+        $points = quiz_config::points($gradeitemid);
+        if ($points <= 0) {
+            return;
+        }
         (new payout_engine())->award_points($userid, $courseid, $points, 'grade_items', $gradeitemid);
     }
 
-    /**
-     * Award points for an earned badge.
-     *
-     * @param \core\event\badge_awarded $event
-     * @return void
-     */
     public static function badge_awarded(\core\event\badge_awarded $event): void {
         $userid   = (int) $event->relateduserid;
         $courseid = (int) $event->courseid;
         $badgeid  = (int) $event->objectid;
-        $points   = course_config::resolve_points($courseid, 'points_badge_awarded');
+
+        // Strict: no rewards for site-wide badges (courseid == SITEID).
+        if ($courseid <= SITEID) {
+            return;
+        }
+        if (!course_config::is_course_enabled($courseid)) {
+            return;
+        }
+        $points = badge_config::points($badgeid);
         if ($points <= 0) {
             return;
         }

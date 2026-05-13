@@ -40,20 +40,42 @@
         <INDEX NAME="uix_pointsid" UNIQUE="true" FIELDS="pointsid"/>
       </INDEXES>
     </TABLE>
-    <TABLE NAME="btcrewards_course_config" COMMENT="Per-course override of reward settings. Absence of a row means rewards are disabled for that course.">
+    <TABLE NAME="btcrewards_course_config" COMMENT="Per-course enable flag and course-completion reward. Absence of a row means rewards are disabled for that course.">
       <FIELDS>
         <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
         <FIELD NAME="courseid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
         <FIELD NAME="enabled" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
         <FIELD NAME="points_course_completed" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false"/>
-        <FIELD NAME="points_quiz_passed" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false"/>
-        <FIELD NAME="points_badge_awarded" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false"/>
         <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
       </FIELDS>
       <KEYS>
         <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
         <KEY NAME="uk_courseid" TYPE="unique" FIELDS="courseid"/>
         <KEY NAME="fk_courseid" TYPE="foreign" FIELDS="courseid" REFTABLE="course" REFFIELDS="id"/>
+      </KEYS>
+    </TABLE>
+    <TABLE NAME="btcrewards_quiz_config" COMMENT="Per-quiz reward opt-in. A row here means passing this grade-item mints points; absence means no reward.">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="gradeitemid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="points" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+        <KEY NAME="uk_gradeitemid" TYPE="unique" FIELDS="gradeitemid"/>
+      </KEYS>
+    </TABLE>
+    <TABLE NAME="btcrewards_badge_config" COMMENT="Per-badge reward opt-in. A row here means earning this badge mints points; absence means no reward.">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="badgeid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="points" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+        <KEY NAME="uk_badgeid" TYPE="unique" FIELDS="badgeid"/>
       </KEYS>
     </TABLE>
     <TABLE NAME="btcrewards_payout_queue" COMMENT="Queue of pending and processed payouts. Points are denominated in USD cents; sats are computed at claim time using the locked BTC/USD rate. txid is the correlation key for webhook events.">
