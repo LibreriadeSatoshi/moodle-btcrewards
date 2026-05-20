@@ -70,7 +70,7 @@ class payout_engine {
      *
      * @throws \moodle_exception When misconfigured, below threshold, or missing address.
      */
-    public function claim(int $userid, string $destination): int {
+    public function claim(int $userid, string $destination, bool $adminoverride = false): int {
         global $DB;
 
         $destination = $this->validate_destination($destination);
@@ -85,6 +85,10 @@ class payout_engine {
         [$ratecents, $sats] = $this->lock_rate_and_sats($usdcents, $client);
         $this->enforce_onchain_floor($destination, $sats, $ratecents, $client);
 
+        $initialstatus = $adminoverride
+            ? payout_status::PENDING
+            : $this->initial_status_for_points($pointids);
+
         // Two parallel claim() calls (e.g. a double-clicked submit) can both
         // pass the threshold check above before either inserts. The unique
         // index on btcrewards_payout_items.pointsid means the loser's items
@@ -92,12 +96,30 @@ class payout_engine {
         // loser's queue row also rolls back, leaving no orphan to be paid.
         $transaction = $DB->start_delegated_transaction();
         try {
-            $payoutid = $this->persist_claim($userid, $usdcents, $ratecents, $sats, $destination, $pointids);
+            $payoutid = $this->persist_claim(
+                $userid, $usdcents, $ratecents, $sats, $destination, $pointids, $initialstatus);
             $transaction->allow_commit();
             return $payoutid;
         } catch (\dml_write_exception $e) {
             $transaction->rollback(new \moodle_exception('claim_concurrent', 'local_btcrewards'));
         }
+    }
+
+    /**
+     * If any source course requires admin approval, the queue row starts in
+     * pending_approval; otherwise it goes straight to pending.
+     */
+    private function initial_status_for_points(array $pointids): string {
+        global $DB;
+        [$sql, $params] = $DB->get_in_or_equal($pointids);
+        $courseids = $DB->get_fieldset_sql(
+            "SELECT DISTINCT courseid FROM {btcrewards_points} WHERE id $sql", $params);
+        foreach ($courseids as $cid) {
+            if (course_config::claim_mode((int) $cid) === course_config::CLAIM_MODE_ADMIN_APPROVAL) {
+                return payout_status::PENDING_APPROVAL;
+            }
+        }
+        return payout_status::PENDING;
     }
 
     /**
@@ -179,7 +201,7 @@ class payout_engine {
      */
     private function persist_claim(
         int $userid, int $usdcents, int $ratecents, int $sats,
-        string $destination, array $pointids
+        string $destination, array $pointids, string $initialstatus
     ): int {
         global $DB;
         $now = time();
@@ -190,7 +212,7 @@ class payout_engine {
             'sats'         => $sats,
             'destination'  => $destination,
             'dest_type'    => 'auto',
-            'status'       => payout_status::PENDING,
+            'status'       => $initialstatus,
             'txid'         => null,
             'preimage'     => null,
             'attempts'     => 0,
@@ -230,6 +252,37 @@ class payout_engine {
         $DB->delete_records('btcrewards_payout_items', ['payoutid' => $payoutid]);
         // Mark the row so the UI can distinguish "points still locked" from
         // "points already refunded into the user's balance".
+        $row->status = payout_status::REQUEUED;
+        $row->timemodified = time();
+        $DB->update_record('btcrewards_payout_queue', $row);
+    }
+
+    /**
+     * Admin approves a pending_approval row: it becomes pending and the next
+     * cron tick will submit it.
+     */
+    public function approve_pending(int $payoutid): void {
+        global $DB;
+        $row = $DB->get_record('btcrewards_payout_queue', ['id' => $payoutid], '*', MUST_EXIST);
+        if ($row->status !== payout_status::PENDING_APPROVAL) {
+            throw new \moodle_exception('approval_not_pending', 'local_btcrewards');
+        }
+        $row->status = payout_status::PENDING;
+        $row->timemodified = time();
+        $DB->update_record('btcrewards_payout_queue', $row);
+    }
+
+    /**
+     * Admin rejects a pending_approval row: drop the items so points return
+     * to the user's unclaimed balance, mark the row REQUEUED.
+     */
+    public function reject_pending(int $payoutid): void {
+        global $DB;
+        $row = $DB->get_record('btcrewards_payout_queue', ['id' => $payoutid], '*', MUST_EXIST);
+        if ($row->status !== payout_status::PENDING_APPROVAL) {
+            throw new \moodle_exception('approval_not_pending', 'local_btcrewards');
+        }
+        $DB->delete_records('btcrewards_payout_items', ['payoutid' => $payoutid]);
         $row->status = payout_status::REQUEUED;
         $row->timemodified = time();
         $DB->update_record('btcrewards_payout_queue', $row);

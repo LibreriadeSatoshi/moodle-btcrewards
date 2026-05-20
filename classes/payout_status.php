@@ -21,14 +21,19 @@ defined('MOODLE_INTERNAL') || die();
 /**
  * State machine values for the payout queue. The legal transitions are:
  *
- *   PENDING  → ACCEPTED  (cron submitted to service, awaiting webhook)
- *   PENDING  → PAID      (rare: service settled synchronously)
- *   PENDING  → FAILED    (max attempts hit, or non-retryable error)
- *   ACCEPTED → PAID      (settlement webhook arrived)
- *   ACCEPTED → FAILED    (failure webhook arrived)
- *   FAILED   → REQUEUED  (user clicked "try again", points returned)
+ *   PENDING_APPROVAL → PENDING   (admin approved)
+ *   PENDING_APPROVAL → REQUEUED  (admin rejected; points returned)
+ *   PENDING          → ACCEPTED  (cron submitted to service, awaiting webhook)
+ *   PENDING          → PAID      (rare: service settled synchronously)
+ *   PENDING          → FAILED    (max attempts hit, or non-retryable error)
+ *   ACCEPTED         → PAID      (settlement webhook arrived)
+ *   ACCEPTED         → FAILED    (failure webhook arrived)
+ *   FAILED           → REQUEUED  (user clicked "try again", points returned)
  */
 final class payout_status {
+    /** Submitted by user, held until an admin approves. */
+    public const PENDING_APPROVAL = 'pending_approval';
+
     /** Awaiting cron pickup; points are reserved on the row. */
     public const PENDING  = 'pending';
 

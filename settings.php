@@ -20,6 +20,12 @@ if ($hassiteconfig) {
     $settings = new admin_settingpage('local_btcrewards', get_string('pluginname', 'local_btcrewards'));
     $ADMIN->add('localplugins', $settings);
 
+    $ADMIN->add('localplugins', new admin_externalpage(
+        'local_btcrewards_admin_claim',
+        get_string('admin_claim_title', 'local_btcrewards'),
+        new moodle_url('/local/btcrewards/admin_claim.php')
+    ));
+
     $sources = [
         'native' => get_string('source_native', 'local_btcrewards'),
         // 'xp' => get_string('source_xp', 'local_btcrewards'),

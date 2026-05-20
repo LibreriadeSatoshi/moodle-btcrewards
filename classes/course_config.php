@@ -22,6 +22,11 @@ namespace local_btcrewards;
 defined('MOODLE_INTERNAL') || die();
 
 class course_config {
+    /** Student submits claim, immediate processing. */
+    public const CLAIM_MODE_SELF = 'self';
+    /** Student submits claim, held until an admin approves. */
+    public const CLAIM_MODE_ADMIN_APPROVAL = 'admin_approval';
+
     public static function get(int $courseid) {
         global $DB;
         return $DB->get_record('btcrewards_course_config', ['courseid' => $courseid]);
@@ -46,8 +51,28 @@ class course_config {
         return $row->points_course_completed !== null ? (int) $row->points_course_completed : 0;
     }
 
-    public static function save(int $courseid, bool $enabled, ?int $pointscoursecompleted): void {
+    /**
+     * Claim mode for this course. Defaults to admin_approval when no row exists.
+     */
+    public static function claim_mode(int $courseid): string {
+        $row = self::get($courseid);
+        if (!$row || empty($row->claim_mode)) {
+            return self::CLAIM_MODE_ADMIN_APPROVAL;
+        }
+        return $row->claim_mode;
+    }
+
+    public static function save(
+        int $courseid,
+        bool $enabled,
+        ?int $pointscoursecompleted,
+        string $claimmode
+    ): void {
         global $DB;
+
+        if (!in_array($claimmode, [self::CLAIM_MODE_SELF, self::CLAIM_MODE_ADMIN_APPROVAL], true)) {
+            $claimmode = self::CLAIM_MODE_ADMIN_APPROVAL;
+        }
 
         $now = time();
         $existing = self::get($courseid);
@@ -55,6 +80,7 @@ class course_config {
             'courseid'                 => $courseid,
             'enabled'                  => $enabled ? 1 : 0,
             'points_course_completed'  => $pointscoursecompleted,
+            'claim_mode'               => $claimmode,
             'timemodified'             => $now,
         ];
 

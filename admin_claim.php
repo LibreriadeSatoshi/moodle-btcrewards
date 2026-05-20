@@ -1,0 +1,173 @@
+<?php
+// This file is part of Moodle - https://moodle.org/
+//
+// Moodle is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+
+/**
+ * Admin payout management: approve/reject pending student claims and
+ * initiate payouts on behalf of any user.
+ *
+ * @package    local_btcrewards
+ * @copyright  2026 local_btcrewards contributors
+ * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ */
+
+require(__DIR__ . '/../../config.php');
+
+require_login();
+if (!is_siteadmin()) {
+    throw new moodle_exception('accessdenied', 'admin');
+}
+
+$pageurl = new moodle_url('/local/btcrewards/admin_claim.php');
+$PAGE->set_url($pageurl);
+$PAGE->set_context(\context_system::instance());
+$PAGE->set_pagelayout('admin');
+$PAGE->set_title(get_string('admin_claim_title', 'local_btcrewards'));
+$PAGE->set_heading(get_string('admin_claim_title', 'local_btcrewards'));
+
+// --- Handle POST actions before rendering. ---
+$action = optional_param('action', '', PARAM_ALPHA);
+if ($action !== '' && confirm_sesskey()) {
+    $engine = new \local_btcrewards\payout_engine();
+    if ($action === 'approve') {
+        $payoutid = required_param('payoutid', PARAM_INT);
+        $engine->approve_pending($payoutid);
+        redirect($pageurl, get_string('admin_claim_approved', 'local_btcrewards'),
+            null, \core\output\notification::NOTIFY_SUCCESS);
+    }
+    if ($action === 'reject') {
+        $payoutid = required_param('payoutid', PARAM_INT);
+        $engine->reject_pending($payoutid);
+        redirect($pageurl, get_string('admin_claim_rejected', 'local_btcrewards'),
+            null, \core\output\notification::NOTIFY_INFO);
+    }
+    if ($action === 'claim') {
+        $targetuserid = required_param('userid', PARAM_INT);
+        $destination  = required_param('destination', PARAM_RAW_TRIMMED);
+        try {
+            $engine->claim($targetuserid, $destination, true);
+            redirect($pageurl, get_string('admin_claim_submitted', 'local_btcrewards'),
+                null, \core\output\notification::NOTIFY_SUCCESS);
+        } catch (\moodle_exception $e) {
+            redirect($pageurl, $e->getMessage(),
+                null, \core\output\notification::NOTIFY_ERROR);
+        }
+    }
+}
+
+echo $OUTPUT->header();
+
+// --- Section 1: pending approvals. ---
+echo $OUTPUT->heading(get_string('admin_claim_pending_heading', 'local_btcrewards'), 3);
+
+global $DB;
+$pendingsql = "SELECT q.id, q.userid, q.usd_cents, q.sats, q.destination, q.timecreated,
+                      u.firstname, u.lastname, u.email
+                 FROM {btcrewards_payout_queue} q
+                 JOIN {user} u ON u.id = q.userid
+                WHERE q.status = ?
+             ORDER BY q.timecreated";
+$pending = $DB->get_records_sql($pendingsql, [\local_btcrewards\payout_status::PENDING_APPROVAL]);
+
+if (empty($pending)) {
+    echo html_writer::tag('p', get_string('admin_claim_pending_empty', 'local_btcrewards'),
+        ['class' => 'text-muted']);
+} else {
+    $table = new html_table();
+    $table->head = [
+        get_string('admin_claim_col_user', 'local_btcrewards'),
+        get_string('admin_claim_col_amount', 'local_btcrewards'),
+        get_string('admin_claim_col_destination', 'local_btcrewards'),
+        get_string('admin_claim_col_when', 'local_btcrewards'),
+        get_string('admin_claim_col_actions', 'local_btcrewards'),
+    ];
+    foreach ($pending as $row) {
+        $usd  = '$' . number_format(((int) $row->usd_cents) / 100, 2);
+        $sats = number_format((int) $row->sats);
+        $approveform = html_writer::start_tag('form', ['method' => 'post', 'action' => $pageurl,
+            'class' => 'd-inline mr-1']);
+        $approveform .= html_writer::empty_tag('input', ['type' => 'hidden', 'name' => 'sesskey', 'value' => sesskey()]);
+        $approveform .= html_writer::empty_tag('input', ['type' => 'hidden', 'name' => 'action', 'value' => 'approve']);
+        $approveform .= html_writer::empty_tag('input', ['type' => 'hidden', 'name' => 'payoutid', 'value' => $row->id]);
+        $approveform .= html_writer::tag('button',
+            get_string('admin_claim_approve', 'local_btcrewards'),
+            ['type' => 'submit', 'class' => 'btn btn-sm btn-success']);
+        $approveform .= html_writer::end_tag('form');
+
+        $rejectform = html_writer::start_tag('form', ['method' => 'post', 'action' => $pageurl,
+            'class' => 'd-inline']);
+        $rejectform .= html_writer::empty_tag('input', ['type' => 'hidden', 'name' => 'sesskey', 'value' => sesskey()]);
+        $rejectform .= html_writer::empty_tag('input', ['type' => 'hidden', 'name' => 'action', 'value' => 'reject']);
+        $rejectform .= html_writer::empty_tag('input', ['type' => 'hidden', 'name' => 'payoutid', 'value' => $row->id]);
+        $rejectform .= html_writer::tag('button',
+            get_string('admin_claim_reject', 'local_btcrewards'),
+            ['type' => 'submit', 'class' => 'btn btn-sm btn-outline-danger']);
+        $rejectform .= html_writer::end_tag('form');
+
+        $table->data[] = [
+            fullname($row) . ' <small class="text-muted">' . s($row->email) . '</small>',
+            $usd . ' <small class="text-muted">(' . $sats . ' sats)</small>',
+            html_writer::tag('code', shorten_text($row->destination, 40)),
+            userdate($row->timecreated),
+            $approveform . ' ' . $rejectform,
+        ];
+    }
+    echo html_writer::table($table);
+}
+
+// --- Section 2: admin-initiated claim. ---
+echo $OUTPUT->heading(get_string('admin_claim_initiate_heading', 'local_btcrewards'), 3,
+    'mt-5');
+
+$minpayoutcents = local_btcrewards_min_payout_cents();
+$centsperpoint  = local_btcrewards_cents_per_point();
+
+$claimablesql = "SELECT p.userid, SUM(p.points) AS pts, u.firstname, u.lastname, u.email
+                   FROM {btcrewards_points} p
+              LEFT JOIN {btcrewards_payout_items} pi ON pi.pointsid = p.id
+                   JOIN {user} u ON u.id = p.userid
+                  WHERE pi.id IS NULL
+               GROUP BY p.userid, u.firstname, u.lastname, u.email
+                 HAVING SUM(p.points) * ? >= ?";
+$claimable = $DB->get_records_sql($claimablesql, [$centsperpoint, $minpayoutcents]);
+
+if (empty($claimable)) {
+    echo html_writer::tag('p', get_string('admin_claim_initiate_empty', 'local_btcrewards'),
+        ['class' => 'text-muted']);
+} else {
+    $table = new html_table();
+    $table->head = [
+        get_string('admin_claim_col_user', 'local_btcrewards'),
+        get_string('admin_claim_col_unclaimed', 'local_btcrewards'),
+        get_string('admin_claim_col_destination', 'local_btcrewards'),
+    ];
+    foreach ($claimable as $row) {
+        $usd = '$' . number_format(((int) $row->pts) * $centsperpoint / 100, 2);
+        $form = html_writer::start_tag('form', ['method' => 'post', 'action' => $pageurl,
+            'class' => 'd-flex gap-2']);
+        $form .= html_writer::empty_tag('input', ['type' => 'hidden', 'name' => 'sesskey', 'value' => sesskey()]);
+        $form .= html_writer::empty_tag('input', ['type' => 'hidden', 'name' => 'action', 'value' => 'claim']);
+        $form .= html_writer::empty_tag('input', ['type' => 'hidden', 'name' => 'userid', 'value' => $row->userid]);
+        $form .= html_writer::empty_tag('input', ['type' => 'text', 'name' => 'destination',
+            'class' => 'form-control form-control-sm',
+            'placeholder' => get_string('my_address_placeholder', 'local_btcrewards'),
+            'required' => 'required']);
+        $form .= html_writer::tag('button',
+            get_string('admin_claim_pay', 'local_btcrewards'),
+            ['type' => 'submit', 'class' => 'btn btn-sm btn-primary']);
+        $form .= html_writer::end_tag('form');
+
+        $table->data[] = [
+            fullname($row) . ' <small class="text-muted">' . s($row->email) . '</small>',
+            $usd . ' <small class="text-muted">(' . number_format((int) $row->pts) . ' pts)</small>',
+            $form,
+        ];
+    }
+    echo html_writer::table($table);
+}
+
+echo $OUTPUT->footer();

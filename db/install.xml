@@ -40,12 +40,13 @@
         <INDEX NAME="uix_pointsid" UNIQUE="true" FIELDS="pointsid"/>
       </INDEXES>
     </TABLE>
-    <TABLE NAME="btcrewards_course_config" COMMENT="Per-course enable flag and course-completion reward. Absence of a row means rewards are disabled for that course.">
+    <TABLE NAME="btcrewards_course_config" COMMENT="Per-course enable flag, course-completion reward, and claim mode. Absence of a row means rewards are disabled for that course.">
       <FIELDS>
         <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
         <FIELD NAME="courseid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
         <FIELD NAME="enabled" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
         <FIELD NAME="points_course_completed" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="claim_mode" TYPE="char" LENGTH="20" NOTNULL="true" DEFAULT="admin_approval" SEQUENCE="false" COMMENT="self = student claims directly; admin_approval = admin must approve before payout."/>
         <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
       </FIELDS>
       <KEYS>

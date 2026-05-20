@@ -330,6 +330,7 @@ if (empty($queue)) {
     echo html_writer::tag('p', get_string('my_empty_queue', 'local_btcrewards'));
 } else {
     $statusclass = [
+        \local_btcrewards\payout_status::PENDING_APPROVAL => 'badge-warning bg-warning text-dark',
         \local_btcrewards\payout_status::PENDING  => 'badge-warning bg-warning text-dark',
         \local_btcrewards\payout_status::ACCEPTED => 'badge-info bg-info text-white',
         'processing'                              => 'badge-primary bg-primary text-white',

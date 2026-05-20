@@ -44,6 +44,18 @@ class course_config_form extends \moodleform {
         $mform->addHelpButton('points_course_completed', 'course_config_override', 'local_btcrewards');
         $mform->disabledIf('points_course_completed', 'enabled', 'notchecked');
 
+        $mform->addElement('select', 'claim_mode',
+            get_string('course_config_claim_mode', 'local_btcrewards'),
+            [
+                \local_btcrewards\course_config::CLAIM_MODE_ADMIN_APPROVAL =>
+                    get_string('course_config_claim_mode_admin_approval', 'local_btcrewards'),
+                \local_btcrewards\course_config::CLAIM_MODE_SELF =>
+                    get_string('course_config_claim_mode_self', 'local_btcrewards'),
+            ]
+        );
+        $mform->addHelpButton('claim_mode', 'course_config_claim_mode', 'local_btcrewards');
+        $mform->disabledIf('claim_mode', 'enabled', 'notchecked');
+
         // Per-quiz section.
         $quizzes = $this->_customdata['quizzes'] ?? [];
         $mform->addElement('header', 'quizheader',
