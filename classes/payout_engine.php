@@ -263,10 +263,7 @@ class payout_engine {
      */
     public function approve_pending(int $payoutid): void {
         global $DB;
-        $row = $DB->get_record('btcrewards_payout_queue', ['id' => $payoutid], '*', MUST_EXIST);
-        if ($row->status !== payout_status::PENDING_APPROVAL) {
-            throw new \moodle_exception('approval_not_pending', 'local_btcrewards');
-        }
+        $row = $this->load_pending_approval($payoutid);
         $row->status = payout_status::PENDING;
         $row->timemodified = time();
         $DB->update_record('btcrewards_payout_queue', $row);
@@ -278,14 +275,26 @@ class payout_engine {
      */
     public function reject_pending(int $payoutid): void {
         global $DB;
-        $row = $DB->get_record('btcrewards_payout_queue', ['id' => $payoutid], '*', MUST_EXIST);
-        if ($row->status !== payout_status::PENDING_APPROVAL) {
-            throw new \moodle_exception('approval_not_pending', 'local_btcrewards');
-        }
+        $row = $this->load_pending_approval($payoutid);
         $DB->delete_records('btcrewards_payout_items', ['payoutid' => $payoutid]);
         $row->status = payout_status::REQUEUED;
         $row->timemodified = time();
         $DB->update_record('btcrewards_payout_queue', $row);
+    }
+
+    /**
+     * Load a queue row that must be in pending_approval — used by both the
+     * approve and reject paths.
+     *
+     * @throws \moodle_exception When the row is missing or not pending approval.
+     */
+    private function load_pending_approval(int $payoutid): \stdClass {
+        global $DB;
+        $row = $DB->get_record('btcrewards_payout_queue', ['id' => $payoutid], '*', MUST_EXIST);
+        if ($row->status !== payout_status::PENDING_APPROVAL) {
+            throw new \moodle_exception('approval_not_pending', 'local_btcrewards');
+        }
+        return $row;
     }
 
     /**

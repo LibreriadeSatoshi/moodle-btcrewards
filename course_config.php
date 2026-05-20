@@ -47,9 +47,7 @@ $formdata = [
     'enabled'  => $existing ? (int) $existing->enabled : 0,
     'points_course_completed' => $existing && $existing->points_course_completed !== null
         ? (int) $existing->points_course_completed : '',
-    'claim_mode' => $existing && !empty($existing->claim_mode)
-        ? $existing->claim_mode
-        : \local_btcrewards\course_config::CLAIM_MODE_ADMIN_APPROVAL,
+    'claim_mode' => \local_btcrewards\course_config::claim_mode($course->id),
 ];
 foreach ($quizzes as $q) {
     $formdata["quiz_{$q->id}"] = $q->points !== null ? (int) $q->points : '';
@@ -75,7 +73,7 @@ if ($data = $form->get_data()) {
         $course->id,
         !empty($data->enabled),
         $tonull($data->points_course_completed),
-        $data->claim_mode ?? \local_btcrewards\course_config::CLAIM_MODE_ADMIN_APPROVAL
+        (string) ($data->claim_mode ?? '')
     );
     foreach ($quizzes as $q) {
         $key = "quiz_{$q->id}";
