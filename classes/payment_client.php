@@ -71,7 +71,7 @@ class payment_client {
             'destination' => $destination,
         ]);
 
-        [$code, $raw] = $this->request('POST', '/pay', $payload);
+        [$code, $raw] = $this->request('POST', '/pay', $payload, 60000);
 
         // HTTP 4xx from the service = permanent (bad destination, bad amount).
         // HTTP 5xx or transport error (code 0) = transient, worth retrying.
@@ -161,7 +161,7 @@ class payment_client {
     /**
      * @return array{0: int, 1: string} HTTP code and raw body.
      */
-    private function request(string $method, string $path, ?string $body): array {
+    private function request(string $method, string $path, ?string $body, int $timeoutms = 3000): array {
         global $CFG;
         require_once($CFG->libdir . '/filelib.php');
 
@@ -175,7 +175,7 @@ class payment_client {
         $curl = new \curl(['ignoresecurity' => true]);
         $curl->setopt([
             'CURLOPT_CONNECTTIMEOUT_MS' => 2000,
-            'CURLOPT_TIMEOUT_MS'        => 3000,
+            'CURLOPT_TIMEOUT_MS'        => $timeoutms,
         ]);
         $curl->setHeader([
             'Content-Type: application/json',
