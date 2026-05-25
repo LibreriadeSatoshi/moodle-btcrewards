@@ -85,6 +85,9 @@ $string['admin_failed_empty'] = 'No failed payouts.';
 $string['admin_failed_col_error'] = 'Error';
 $string['admin_failed_release'] = 'Release points';
 $string['admin_failed_released'] = 'Points released — the user can claim again.';
+$string['admin_recent_heading'] = 'All payouts';
+$string['admin_recent_empty'] = 'No payouts yet.';
+$string['admin_recent_col_attempts'] = 'Attempts';
 $string['approval_not_pending'] = 'This claim is not in pending-approval state.';
 $string['payout_status_pending_approval'] = 'Awaiting admin approval';
 

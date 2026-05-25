@@ -205,4 +205,39 @@ if (empty($failed)) {
     echo html_writer::table($table);
 }
 
+// --- Section 4: read-only history of recent payouts. ---
+echo $OUTPUT->heading(get_string('admin_recent_heading', 'local_btcrewards'), 3, 'mt-5');
+
+$recent = \local_btcrewards\payout_finder::recent_payouts(50);
+if (empty($recent)) {
+    echo html_writer::tag('p', get_string('admin_recent_empty', 'local_btcrewards'),
+        ['class' => 'text-muted']);
+} else {
+    $table = new html_table();
+    $table->head = [
+        '#',
+        get_string('admin_claim_col_user', 'local_btcrewards'),
+        get_string('my_col_status', 'local_btcrewards'),
+        get_string('admin_claim_col_amount', 'local_btcrewards'),
+        get_string('admin_claim_col_destination', 'local_btcrewards'),
+        get_string('admin_recent_col_attempts', 'local_btcrewards'),
+        get_string('admin_claim_col_when', 'local_btcrewards'),
+    ];
+    foreach ($recent as $row) {
+        $usd  = '$' . number_format(((int) $row->usd_cents) / 100, 2);
+        $sats = number_format((int) $row->sats);
+        $statuslabel = get_string('payout_status_' . $row->status, 'local_btcrewards');
+        $table->data[] = [
+            (int) $row->id,
+            $user_cell($row),
+            $statuslabel,
+            $usd . ' <small class="text-muted">(' . $sats . ' sats)</small>',
+            html_writer::tag('code', shorten_text($row->destination, 35)),
+            (int) $row->attempts,
+            userdate($row->timecreated),
+        ];
+    }
+    echo html_writer::table($table);
+}
+
 echo $OUTPUT->footer();

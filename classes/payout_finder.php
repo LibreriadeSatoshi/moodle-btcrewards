@@ -48,6 +48,20 @@ class payout_finder {
     }
 
     /**
+     * Most-recent payout queue rows across all users, joined with the user.
+     */
+    public static function recent_payouts(int $limit = 50): array {
+        global $DB;
+        $sql = "SELECT q.id, q.userid, q.status, q.usd_cents, q.sats, q.destination,
+                       q.txid, q.attempts, q.last_error, q.timecreated, q.timemodified,
+                       u.firstname, u.lastname, u.email
+                  FROM {btcrewards_payout_queue} q
+                  JOIN {user} u ON u.id = q.userid
+              ORDER BY q.id DESC";
+        return $DB->get_records_sql($sql, [], 0, $limit);
+    }
+
+    /**
      * Users whose unclaimed-points value reaches the configured payout
      * threshold. Powers the admin "trigger payout" section.
      */

@@ -81,6 +81,9 @@ $string['admin_failed_empty'] = 'No hay pagos fallidos.';
 $string['admin_failed_col_error'] = 'Error';
 $string['admin_failed_release'] = 'Liberar puntos';
 $string['admin_failed_released'] = 'Puntos liberados — el usuario puede reclamar de nuevo.';
+$string['admin_recent_heading'] = 'Todos los pagos';
+$string['admin_recent_empty'] = 'No hay pagos aún.';
+$string['admin_recent_col_attempts'] = 'Intentos';
 $string['approval_not_pending'] = 'Este reclamo no está en estado de aprobación pendiente.';
 $string['payout_status_pending_approval'] = 'Esperando aprobación de admin';
 
