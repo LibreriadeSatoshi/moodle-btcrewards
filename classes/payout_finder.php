@@ -34,6 +34,20 @@ class payout_finder {
     }
 
     /**
+     * Failed queue rows, joined with the originating user.
+     */
+    public static function failed_payouts(): array {
+        global $DB;
+        $sql = "SELECT q.id, q.userid, q.usd_cents, q.sats, q.destination, q.last_error, q.timemodified,
+                       u.firstname, u.lastname, u.email
+                  FROM {btcrewards_payout_queue} q
+                  JOIN {user} u ON u.id = q.userid
+                 WHERE q.status = ?
+              ORDER BY q.timemodified DESC";
+        return $DB->get_records_sql($sql, [payout_status::FAILED]);
+    }
+
+    /**
      * Users whose unclaimed-points value reaches the configured payout
      * threshold. Powers the admin "trigger payout" section.
      */

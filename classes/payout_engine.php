@@ -255,27 +255,21 @@ class payout_engine {
     /**
      * Free the points consumed by a failed payout so they can be claimed again.
      *
-     * The failed row stays in the queue as an audit record, but its
-     * btcrewards_payout_items links are dropped — which makes those points
-     * "unclaimed" again from the points_source's perspective.
+     * Admin-only — callers are responsible for authorization. The failed row
+     * stays in the queue as an audit record, but its btcrewards_payout_items
+     * links are dropped, returning those points to the user's unclaimed balance.
      *
-     * @throws \moodle_exception When the row doesn't belong to the user,
-     *                           isn't in failed state, or doesn't exist.
+     * @throws \moodle_exception When the row isn't in failed state, or doesn't exist.
      */
-    public function requeue_failed(int $payoutid, int $userid): void {
+    public function requeue_failed(int $payoutid): void {
         global $DB;
 
         $row = $DB->get_record('btcrewards_payout_queue', ['id' => $payoutid], '*', MUST_EXIST);
-        if ((int) $row->userid !== $userid) {
-            throw new \moodle_exception('requeue_forbidden', 'local_btcrewards');
-        }
         if ($row->status !== payout_status::FAILED) {
             throw new \moodle_exception('requeue_not_failed', 'local_btcrewards');
         }
 
         $DB->delete_records('btcrewards_payout_items', ['payoutid' => $payoutid]);
-        // Mark the row so the UI can distinguish "points still locked" from
-        // "points already refunded into the user's balance".
         $row->status = payout_status::REQUEUED;
         $row->timemodified = time();
         $DB->update_record('btcrewards_payout_queue', $row);

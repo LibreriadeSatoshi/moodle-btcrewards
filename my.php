@@ -36,16 +36,9 @@ require_once(__DIR__ . '/lib.php');
 $minpayoutcents = local_btcrewards_min_payout_cents();
 $centsperpoint  = local_btcrewards_cents_per_point();
 
-// Handle claim submission + requeue of a failed payout.
+// Handle claim submission.
 if (data_submitted() && confirm_sesskey()) {
-    $action = optional_param('action', 'claim', PARAM_ALPHA);
     try {
-        if ($action === 'requeue') {
-            $payoutid = required_param('payoutid', PARAM_INT);
-            (new \local_btcrewards\payout_engine())->requeue_failed($payoutid, $userid);
-            redirect($pageurl, get_string('my_requeue_ok', 'local_btcrewards'), null,
-                \core\output\notification::NOTIFY_SUCCESS);
-        }
         $destination = trim(required_param('destination', PARAM_RAW_TRIMMED));
         (new \local_btcrewards\payout_engine())->claim($userid, $destination);
         redirect($pageurl, get_string('my_claimed_ok', 'local_btcrewards'), null,
@@ -368,25 +361,13 @@ if (empty($queue)) {
         $dl .= html_writer::end_tag('dl');
         echo $dl;
 
-        // Failed → offer the Try-again button. Requeued → show a note that
-        // points are already back in the balance.
+        // Failed payouts are admin-only to resolve. Requeued means an admin
+        // has released the points; the student can claim again with a new
+        // destination.
         if ($row->status === \local_btcrewards\payout_status::FAILED) {
-            $retry  = html_writer::start_tag('form', [
-                'method' => 'post',
-                'action' => $pageurl->out(false),
-                'class'  => 'mt-3',
-            ]);
-            $retry .= html_writer::empty_tag('input', ['type' => 'hidden', 'name' => 'sesskey', 'value' => sesskey()]);
-            $retry .= html_writer::empty_tag('input', ['type' => 'hidden', 'name' => 'action', 'value' => 'requeue']);
-            $retry .= html_writer::empty_tag('input', ['type' => 'hidden', 'name' => 'payoutid', 'value' => (int) $row->id]);
-            $retry .= html_writer::tag('button',
-                get_string('my_retry_button', 'local_btcrewards'),
-                ['type' => 'submit', 'class' => 'btn btn-outline-primary btn-sm']);
-            $retry .= html_writer::tag('small',
-                get_string('my_retry_hint', 'local_btcrewards'),
-                ['class' => 'ms-2 text-muted']);
-            $retry .= html_writer::end_tag('form');
-            echo $retry;
+            echo html_writer::tag('div',
+                get_string('my_failed_admin_contact', 'local_btcrewards'),
+                ['class' => 'mt-3 small text-muted']);
         } else if ($row->status === \local_btcrewards\payout_status::REQUEUED) {
             echo html_writer::tag('div',
                 '↩ ' . get_string('my_requeued_note', 'local_btcrewards'),

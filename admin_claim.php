@@ -82,6 +82,17 @@ if ($action !== '' && confirm_sesskey()) {
         redirect($pageurl, get_string('admin_claim_rejected', 'local_btcrewards'),
             null, \core\output\notification::NOTIFY_INFO);
     }
+    if ($action === 'release') {
+        $payoutid = required_param('payoutid', PARAM_INT);
+        try {
+            $engine->requeue_failed($payoutid);
+            redirect($pageurl, get_string('admin_failed_released', 'local_btcrewards'),
+                null, \core\output\notification::NOTIFY_SUCCESS);
+        } catch (\moodle_exception $e) {
+            redirect($pageurl, $e->getMessage(),
+                null, \core\output\notification::NOTIFY_ERROR);
+        }
+    }
     if ($action === 'claim') {
         $targetuserid = required_param('userid', PARAM_INT);
         $destination  = required_param('destination', PARAM_RAW_TRIMMED);
@@ -155,6 +166,40 @@ if (empty($claimable)) {
             $user_cell($row),
             $usd . ' <small class="text-muted">(' . number_format((int) $row->pts) . ' pts)</small>',
             $pay_form($pageurl, (int) $row->userid),
+        ];
+    }
+    echo html_writer::table($table);
+}
+
+// --- Section 3: failed payouts (admin can release points back to the student). ---
+echo $OUTPUT->heading(get_string('admin_failed_heading', 'local_btcrewards'), 3, 'mt-5');
+
+$failed = \local_btcrewards\payout_finder::failed_payouts();
+if (empty($failed)) {
+    echo html_writer::tag('p', get_string('admin_failed_empty', 'local_btcrewards'),
+        ['class' => 'text-muted']);
+} else {
+    $table = new html_table();
+    $table->head = [
+        get_string('admin_claim_col_user', 'local_btcrewards'),
+        get_string('admin_claim_col_amount', 'local_btcrewards'),
+        get_string('admin_claim_col_destination', 'local_btcrewards'),
+        get_string('admin_failed_col_error', 'local_btcrewards'),
+        get_string('admin_claim_col_when', 'local_btcrewards'),
+        get_string('admin_claim_col_actions', 'local_btcrewards'),
+    ];
+    foreach ($failed as $row) {
+        $usd  = '$' . number_format(((int) $row->usd_cents) / 100, 2);
+        $sats = number_format((int) $row->sats);
+        $release = $button_form($pageurl, 'release', (int) $row->id,
+            get_string('admin_failed_release', 'local_btcrewards'), 'btn-outline-primary');
+        $table->data[] = [
+            $user_cell($row),
+            $usd . ' <small class="text-muted">(' . $sats . ' sats)</small>',
+            html_writer::tag('code', shorten_text($row->destination, 40)),
+            html_writer::tag('small', s((string) ($row->last_error ?? '')), ['class' => 'text-muted']),
+            userdate($row->timemodified),
+            $release,
         ];
     }
     echo html_writer::table($table);
