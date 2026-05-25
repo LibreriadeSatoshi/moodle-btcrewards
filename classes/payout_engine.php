@@ -358,6 +358,7 @@ class payout_engine {
                 if (!empty($result['dest_type'])) {
                     $row->dest_type = $result['dest_type'];
                 }
+                $row->last_error = !empty($result['error']) ? (string) $result['error'] : null;
                 $row->status = $this->next_status($result, (int) $row->attempts, $maxattempts);
             } catch (\Throwable $e) {
                 // pay() doesn't throw under normal HTTP/timeout conditions, so
@@ -366,6 +367,7 @@ class payout_engine {
                 debugging('payout submit error: ' . $e->getMessage(), DEBUG_DEVELOPER);
                 $row->attempts = (int) $row->attempts + 1;
                 $row->timemodified = time();
+                $row->last_error = 'exception: ' . $e->getMessage();
                 if ((int) $row->attempts >= $maxattempts) {
                     $row->status = payout_status::FAILED;
                 }
