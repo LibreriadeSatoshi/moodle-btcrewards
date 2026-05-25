@@ -83,6 +83,7 @@ class payout_engine {
 
         $client = new payment_client();
         [$ratecents, $sats] = $this->lock_rate_and_sats($usdcents, $client);
+        $this->enforce_bolt11_match($destination, $sats, $client);
         $this->enforce_onchain_floor($destination, $sats, $ratecents, $client);
 
         $initialstatus = $adminoverride
@@ -169,6 +170,29 @@ class payout_engine {
         $ratecents = $client->fetch_rate();
         $sats      = (int) round($usdcents * 100000000 / $ratecents);
         return [$ratecents, $sats];
+    }
+
+    /**
+     * Reject bolt11 invoices whose embedded amount doesn't match the claim sats.
+     *
+     * @throws \moodle_exception When the amounts mismatch.
+     */
+    private function enforce_bolt11_match(string $destination, int $sats, payment_client $client): void {
+        try {
+            $info = $client->parse($destination);
+        } catch (\moodle_exception $e) {
+            return;
+        }
+        if ($info['dest_type'] !== 'bolt11' || $info['invoice_msat'] === null) {
+            return;
+        }
+        if ((int) $info['invoice_msat'] !== $sats * 1000) {
+            $a = (object) [
+                'invoice'  => (int) ($info['invoice_msat'] / 1000),
+                'expected' => $sats,
+            ];
+            throw new \moodle_exception('claim_bolt11_amount_mismatch', 'local_btcrewards', '', $a);
+        }
     }
 
     /**
