@@ -48,17 +48,71 @@ class payout_finder {
     }
 
     /**
-     * Most-recent payout queue rows across all users, joined with the user.
+     * Paginated/filtered listing of payouts for the admin browse section.
+     *
+     * @param array $filters {status: string, q_user: string, q_dest: string, from: int, to: int}
      */
-    public static function recent_payouts(int $limit = 50): array {
+    public static function search_payouts(array $filters, int $page = 0, int $pagesize = 25): array {
         global $DB;
+        [$where, $params] = self::build_search_where($filters);
         $sql = "SELECT q.id, q.userid, q.status, q.usd_cents, q.sats, q.destination,
                        q.txid, q.attempts, q.last_error, q.timecreated, q.timemodified,
                        u.firstname, u.lastname, u.email
                   FROM {btcrewards_payout_queue} q
                   JOIN {user} u ON u.id = q.userid
+                 WHERE $where
               ORDER BY q.id DESC";
-        return $DB->get_records_sql($sql, [], 0, $limit);
+        return $DB->get_records_sql($sql, $params, $page * $pagesize, $pagesize);
+    }
+
+    /**
+     * Count rows matching the same filters as search_payouts().
+     */
+    public static function count_payouts(array $filters): int {
+        global $DB;
+        [$where, $params] = self::build_search_where($filters);
+        return (int) $DB->count_records_sql(
+            "SELECT COUNT(*) FROM {btcrewards_payout_queue} q JOIN {user} u ON u.id = q.userid WHERE $where",
+            $params
+        );
+    }
+
+    private static function build_search_where(array $filters): array {
+        global $DB;
+        $where = ['1=1'];
+        $params = [];
+
+        if (!empty($filters['status'])) {
+            $where[] = 'q.status = ?';
+            $params[] = $filters['status'];
+        }
+        if (!empty($filters['q_user'])) {
+            $needle = '%' . $DB->sql_like_escape($filters['q_user']) . '%';
+            $where[] = '('
+                . $DB->sql_like('u.firstname', '?', false, false) . ' OR '
+                . $DB->sql_like('u.lastname',  '?', false, false) . ' OR '
+                . $DB->sql_like('u.email',     '?', false, false) . ')';
+            $params[] = $needle;
+            $params[] = $needle;
+            $params[] = $needle;
+        }
+        if (!empty($filters['q_dest'])) {
+            $needle = '%' . $DB->sql_like_escape($filters['q_dest']) . '%';
+            $where[] = '('
+                . $DB->sql_like('q.destination', '?', false, false) . ' OR '
+                . $DB->sql_like('q.txid',        '?', false, false) . ')';
+            $params[] = $needle;
+            $params[] = $needle;
+        }
+        if (!empty($filters['from'])) {
+            $where[] = 'q.timecreated >= ?';
+            $params[] = (int) $filters['from'];
+        }
+        if (!empty($filters['to'])) {
+            $where[] = 'q.timecreated <= ?';
+            $params[] = (int) $filters['to'];
+        }
+        return [implode(' AND ', $where), $params];
     }
 
     /**
