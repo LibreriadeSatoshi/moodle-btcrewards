@@ -81,10 +81,10 @@ class payout_engine {
             throw new \moodle_exception('claim_below_threshold', 'local_btcrewards');
         }
 
+        $this->validate_ln_address($destination);
+
         $client = new payment_client();
         [$ratecents, $sats] = $this->lock_rate_and_sats($usdcents, $client);
-        $this->enforce_bolt11_match($destination, $sats, $client);
-        $this->enforce_onchain_floor($destination, $sats, $ratecents, $client);
 
         $initialstatus = $adminoverride
             ? payout_status::PENDING
@@ -172,49 +172,14 @@ class payout_engine {
         return [$ratecents, $sats];
     }
 
-    /**
-     * Reject bolt11 invoices whose embedded amount doesn't match the claim sats.
-     *
-     * @throws \moodle_exception When the amounts mismatch.
-     */
-    private function enforce_bolt11_match(string $destination, int $sats, payment_client $client): void {
-        try {
-            $info = $client->parse($destination);
-        } catch (\moodle_exception $e) {
-            return;
+    private function validate_ln_address(string $destination): void {
+        $domain = strtolower(trim((string) get_config('local_btcrewards', 'allowed_ln_domain')));
+        if ($domain === '') {
+            throw new \moodle_exception('claim_misconfigured', 'local_btcrewards');
         }
-        if ($info['dest_type'] !== 'bolt11' || $info['invoice_msat'] === null) {
-            return;
-        }
-        if ((int) $info['invoice_msat'] !== $sats * 1000) {
-            $a = (object) [
-                'invoice'  => (int) ($info['invoice_msat'] / 1000),
-                'expected' => $sats,
-            ];
-            throw new \moodle_exception('claim_bolt11_amount_mismatch', 'local_btcrewards', '', $a);
-        }
-    }
-
-    /**
-     * Reject onchain destinations whose sats amount is below the swap
-     * provider's live minimum. Lightning has no practical floor and is
-     * accepted as-is.
-     *
-     * @throws \moodle_exception
-     */
-    private function enforce_onchain_floor(string $destination, int $sats, int $ratecents, payment_client $client): void {
-        if (local_btcrewards_guess_dest_type($destination) !== 'onchain') {
-            return;
-        }
-        try {
-            $limits = $client->fetch_limits();
-        } catch (\moodle_exception $e) {
-            return; // Limits unavailable — fall back to whatever the service decides at /pay time.
-        }
-        if ($limits['onchain_min'] > 0 && $sats < $limits['onchain_min']) {
-            $minusd = $limits['onchain_min'] * $ratecents / 100000000 / 100;
-            throw new \moodle_exception('claim_onchain_below_min', 'local_btcrewards',
-                '', number_format($minusd, 2));
+        $expected = '/^[a-z0-9._%+-]+@' . preg_quote($domain, '/') . '$/i';
+        if (!preg_match($expected, $destination)) {
+            throw new \moodle_exception('claim_invalid_ln_address', 'local_btcrewards', '', $domain);
         }
     }
 
@@ -235,7 +200,7 @@ class payout_engine {
             'btc_usd_rate' => $ratecents,
             'sats'         => $sats,
             'destination'  => $destination,
-            'dest_type'    => 'auto',
+            'dest_type'    => 'ln_address',
             'status'       => $initialstatus,
             'txid'         => null,
             'preimage'     => null,

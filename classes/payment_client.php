@@ -103,26 +103,6 @@ class payment_client {
     }
 
     /**
-     * Decode a destination via the service and return its type plus embedded amount.
-     *
-     * @return array{dest_type: string, invoice_msat: int|null}
-     * @throws \moodle_exception If the service is unreachable or returns non-2xx.
-     */
-    public function parse(string $destination): array {
-        [$code, $raw] = $this->request(
-            'POST', '/parse', json_encode(['destination' => $destination])
-        );
-        if ($code < 200 || $code >= 300) {
-            throw new \moodle_exception('error_parse_unavailable', 'local_btcrewards', '', "HTTP $code");
-        }
-        $body = json_decode((string) $raw, true) ?: [];
-        return [
-            'dest_type'    => (string) ($body['dest_type'] ?? ''),
-            'invoice_msat' => isset($body['invoice_msat']) ? (int) $body['invoice_msat'] : null,
-        ];
-    }
-
-    /**
      * Fetch the current BTC/USD rate in cents per BTC from the payment service.
      *
      * @return int
@@ -140,26 +120,6 @@ class payment_client {
         }
         $cache->set('cents', $cents);
         return $cents;
-    }
-
-    /**
-     * Fetch current per-rail send limits in sats.
-     *
-     * @return array{onchain_min: int, lightning_min: int}
-     * @throws \moodle_exception If the service is unreachable.
-     */
-    public function fetch_limits(): array {
-        $cache = \cache::make('local_btcrewards', 'service_limits');
-        if (($hit = $cache->get('rails')) !== false) {
-            return $hit;
-        }
-        $body = $this->get_json('/limits', 'error_limits_unavailable');
-        $rails = [
-            'onchain_min'   => (int) ($body['onchain_send']['min_sat'] ?? 0),
-            'lightning_min' => (int) ($body['lightning_send']['min_sat'] ?? 0),
-        ];
-        $cache->set('rails', $rails);
-        return $rails;
     }
 
     /**

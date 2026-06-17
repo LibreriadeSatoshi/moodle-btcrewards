@@ -91,23 +91,15 @@ if ($queue) {
     }
 }
 
-// Fetch BTC/USD rate + per-rail limits. Failure is non-fatal — the overview
-// still renders; the claim form is disabled if the rate is missing, and the
-// onchain availability hint just disappears if limits are missing.
+// Fetch BTC/USD rate. Failure is non-fatal — the overview still renders,
+// the claim form is disabled if the rate is missing.
 $ratecents = 0;
 $rateerror = '';
-$onchainminsat = 0;
 $client = new \local_btcrewards\payment_client();
 try {
     $ratecents = $client->fetch_rate();
 } catch (\moodle_exception $e) {
     $rateerror = $e->getMessage();
-}
-try {
-    $limits = $client->fetch_limits();
-    $onchainminsat = (int) $limits['onchain_min'];
-} catch (\moodle_exception $e) {
-    // ignore — UI degrades gracefully
 }
 
 echo $OUTPUT->header();
@@ -122,9 +114,6 @@ $projectedsats = $ratecents > 0
 $minpayoutusd = $minpayoutcents / 100;
 $progress = $minpayoutcents > 0
     ? min(100, (int) round($projectedusdcents / $minpayoutcents * 100))
-    : 0;
-$onchainminusd = ($onchainminsat > 0 && $ratecents > 0)
-    ? $onchainminsat * $ratecents / 100000000 / 100
     : 0;
 
 echo html_writer::start_div('card mb-4');
@@ -222,6 +211,7 @@ if ($projectedusdcents < $minpayoutcents) {
     $form .= html_writer::tag('label',
         get_string('my_address_label', 'local_btcrewards'),
         ['for' => 'local_btcrewards_destination', 'class' => 'font-weight-bold']);
+    $alloweddomain = trim((string) get_config('local_btcrewards', 'allowed_ln_domain'));
     $form .= html_writer::empty_tag('input', [
         'type'         => 'text',
         'name'         => 'destination',
@@ -229,26 +219,11 @@ if ($projectedusdcents < $minpayoutcents) {
         'class'        => 'form-control',
         'required'     => 'required',
         'autocomplete' => 'off',
-        'placeholder'  => get_string('my_address_placeholder', 'local_btcrewards'),
+        'placeholder'  => get_string('my_address_placeholder', 'local_btcrewards', $alloweddomain),
     ]);
     $form .= html_writer::tag('div',
-        get_string('my_address_help', 'local_btcrewards', $satsformatted),
+        get_string('my_address_help', 'local_btcrewards', $alloweddomain),
         ['class' => 'form-text text-muted small mt-2']);
-
-    // Onchain availability hint — informational when above the floor, a
-    // soft warning when the current claim is below it.
-    if ($onchainminusd > 0) {
-        $minusdfmt = '$' . number_format($onchainminusd, 2);
-        if ($projectedusd < $onchainminusd) {
-            $form .= html_writer::tag('div',
-                '⚠ ' . get_string('my_onchain_unavailable', 'local_btcrewards', $minusdfmt),
-                ['class' => 'small text-warning mt-2']);
-        } else {
-            $form .= html_writer::tag('div',
-                get_string('my_onchain_available', 'local_btcrewards', $minusdfmt),
-                ['class' => 'small text-muted mt-2']);
-        }
-    }
 
     $form .= html_writer::tag('div',
         get_string('my_address_warning', 'local_btcrewards'),

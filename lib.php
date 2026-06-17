@@ -46,35 +46,6 @@ function local_btcrewards_min_payout_cents(): int {
 }
 
 /**
- * Cheap, prefix-based detection of the destination type used for client-side
- * validation. Authoritative classification still happens server-side via the
- * Breez SDK parser; this is just to gate "this rail can't take a claim this
- * small" decisions before we POST.
- *
- * @return string One of 'onchain'|'bolt11'|'bolt12'|'ln_address'|'unknown'.
- */
-function local_btcrewards_guess_dest_type(string $destination): string {
-    $d = strtolower(trim($destination));
-    if ($d === '') {
-        return 'unknown';
-    }
-    if (preg_match('/^(bc1|tb1|bcrt1)/', $d) || preg_match('/^[13][a-km-z1-9]{20,}$/', $d)) {
-        return 'onchain';
-    }
-    if (str_starts_with($d, 'lnbc') || str_starts_with($d, 'lntb') ||
-        str_starts_with($d, 'lnbcrt') || str_starts_with($d, 'lnsb')) {
-        return 'bolt11';
-    }
-    if (str_starts_with($d, 'lno')) {
-        return 'bolt12';
-    }
-    if (preg_match('/^[^@\s]+@[^@\s]+\.[^@\s]+$/', $d)) {
-        return 'ln_address';
-    }
-    return 'unknown';
-}
-
-/**
  * Adds a "Bitcoin rewards" link to the course administration menu.
  *
  * @param navigation_node $navigation

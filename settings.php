@@ -63,6 +63,14 @@ if ($hassiteconfig) {
     ));
 
     $settings->add(new admin_setting_configtext(
+        'local_btcrewards/allowed_ln_domain',
+        get_string('setting_allowed_ln_domain', 'local_btcrewards'),
+        get_string('setting_allowed_ln_domain_desc', 'local_btcrewards'),
+        'pay.libreriadesatoshi.com',
+        PARAM_HOST
+    ));
+
+    $settings->add(new admin_setting_configtext(
         'local_btcrewards/payment_service_url',
         get_string('setting_payment_service_url', 'local_btcrewards'),
         get_string('setting_payment_service_url_desc', 'local_btcrewards'),

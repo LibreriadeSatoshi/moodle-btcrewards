@@ -23,10 +23,4 @@ $definitions = [
         'simpledata' => true,
         'ttl'        => 60,
     ],
-    'service_limits' => [
-        'mode'       => cache_store::MODE_APPLICATION,
-        'simplekeys' => true,
-        'simpledata' => true,
-        'ttl'        => 300,
-    ],
 ];
