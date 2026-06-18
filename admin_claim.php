@@ -109,6 +109,51 @@ if ($action !== '' && confirm_sesskey()) {
 
 echo $OUTPUT->header();
 
+// --- Wallet balance card. ---
+$client = new \local_btcrewards\payment_client();
+try {
+    $wallet = $client->fetch_balance();
+    $usdline = '';
+    try {
+        $rate = $client->fetch_rate();
+        $usd = $wallet['balance_sat'] * $rate / 100000000 / 100;
+        $usdline = '≈ $' . number_format($usd, 2);
+    } catch (\moodle_exception $e) {
+        // Rate optional — show sats only.
+    }
+    echo html_writer::start_div('card mb-4');
+    echo html_writer::start_div('card-body');
+    echo html_writer::tag('h5',
+        get_string('admin_balance_heading', 'local_btcrewards'),
+        ['class' => 'card-title text-muted small text-uppercase']);
+    echo html_writer::start_div('row');
+    $col1  = html_writer::tag('div', number_format($wallet['balance_sat']) . ' sats',
+        ['class' => 'h3 mb-0']);
+    if ($usdline !== '') {
+        $col1 .= html_writer::tag('div', $usdline, ['class' => 'text-muted small']);
+    }
+    echo html_writer::tag('div', $col1, ['class' => 'col-md-4']);
+    echo html_writer::tag('div',
+        html_writer::tag('div',
+            get_string('admin_balance_pending_send', 'local_btcrewards'),
+            ['class' => 'small text-muted']) .
+        html_writer::tag('div', number_format($wallet['pending_send_sat']) . ' sats'),
+        ['class' => 'col-md-4']);
+    echo html_writer::tag('div',
+        html_writer::tag('div',
+            get_string('admin_balance_pending_receive', 'local_btcrewards'),
+            ['class' => 'small text-muted']) .
+        html_writer::tag('div', number_format($wallet['pending_receive_sat']) . ' sats'),
+        ['class' => 'col-md-4']);
+    echo html_writer::end_div();
+    echo html_writer::end_div();
+    echo html_writer::end_div();
+} catch (\moodle_exception $e) {
+    echo $OUTPUT->notification(
+        get_string('admin_balance_unavailable', 'local_btcrewards', $e->getMessage()),
+        \core\output\notification::NOTIFY_WARNING);
+}
+
 // --- Section 1: pending approvals. ---
 echo $OUTPUT->heading(get_string('admin_claim_pending_heading', 'local_btcrewards'), 3);
 

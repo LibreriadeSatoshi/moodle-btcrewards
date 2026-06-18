@@ -123,6 +123,27 @@ class payment_client {
     }
 
     /**
+     * Fetch the wallet balance (settled + pending) from the payment service.
+     *
+     * @return array{balance_sat: int, pending_send_sat: int, pending_receive_sat: int}
+     * @throws \moodle_exception
+     */
+    public function fetch_balance(): array {
+        $cache = \cache::make('local_btcrewards', 'service_balance');
+        if (($hit = $cache->get('wallet')) !== false) {
+            return $hit;
+        }
+        $body = $this->get_json('/balance', 'error_balance_unavailable');
+        $wallet = [
+            'balance_sat'         => (int) ($body['balance_sat'] ?? 0),
+            'pending_send_sat'    => (int) ($body['pending_send_sat'] ?? 0),
+            'pending_receive_sat' => (int) ($body['pending_receive_sat'] ?? 0),
+        ];
+        $cache->set('wallet', $wallet);
+        return $wallet;
+    }
+
+    /**
      * GET a JSON endpoint and return the decoded body. Centralises the
      * request → 2xx → decode dance shared by every read endpoint.
      *

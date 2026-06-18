@@ -66,6 +66,11 @@ $string['course_config_claim_mode_self'] = 'Student self-service (claim is sent 
 $string['course_config_claim_mode_admin_approval'] = 'Admin approval required (claim waits until an administrator approves)';
 
 $string['admin_claim_title'] = 'Bitcoin Rewards: payouts';
+$string['admin_balance_heading'] = 'Wallet balance';
+$string['admin_balance_pending_send'] = 'Pending outgoing';
+$string['admin_balance_pending_receive'] = 'Pending incoming';
+$string['admin_balance_unavailable'] = 'Could not fetch wallet balance: {$a}';
+$string['error_balance_unavailable'] = 'Payment service balance unavailable: {$a}';
 $string['admin_claim_pending_heading'] = 'Awaiting admin approval';
 $string['admin_claim_pending_empty'] = 'No pending claims.';
 $string['admin_claim_initiate_heading'] = 'Trigger payout for a user';

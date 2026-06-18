@@ -62,6 +62,11 @@ $string['course_config_claim_mode_self'] = 'Autoservicio del estudiante (el recl
 $string['course_config_claim_mode_admin_approval'] = 'Requiere aprobación de admin (el reclamo queda en espera hasta que un admin lo apruebe)';
 
 $string['admin_claim_title'] = 'Recompensas Bitcoin: pagos';
+$string['admin_balance_heading'] = 'Saldo de la billetera';
+$string['admin_balance_pending_send'] = 'Pendiente saliente';
+$string['admin_balance_pending_receive'] = 'Pendiente entrante';
+$string['admin_balance_unavailable'] = 'No se pudo obtener el saldo de la billetera: {$a}';
+$string['error_balance_unavailable'] = 'Saldo del servicio de pagos no disponible: {$a}';
 $string['admin_claim_pending_heading'] = 'Esperando aprobación de admin';
 $string['admin_claim_pending_empty'] = 'No hay reclamos pendientes.';
 $string['admin_claim_initiate_heading'] = 'Iniciar pago para un usuario';
