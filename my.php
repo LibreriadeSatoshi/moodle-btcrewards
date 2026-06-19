@@ -40,6 +40,9 @@ $centsperpoint  = local_btcrewards_cents_per_point();
 if (data_submitted() && confirm_sesskey()) {
     try {
         $destination = trim(required_param('destination', PARAM_RAW_TRIMMED));
+        if (optional_param('ofac_attestation', '', PARAM_RAW) !== '1') {
+            throw new \moodle_exception('my_ofac_required', 'local_btcrewards');
+        }
         (new \local_btcrewards\payout_engine())->claim($userid, $destination);
         redirect($pageurl, get_string('my_claimed_ok', 'local_btcrewards'), null,
             \core\output\notification::NOTIFY_SUCCESS);
@@ -229,6 +232,21 @@ if ($projectedusdcents < $minpayoutcents) {
         get_string('my_address_warning', 'local_btcrewards'),
         ['class' => 'small text-danger mt-2']);
     $form .= html_writer::end_div();
+
+    $form .= html_writer::start_div('form-check mb-3');
+    $form .= html_writer::empty_tag('input', [
+        'type'     => 'checkbox',
+        'name'     => 'ofac_attestation',
+        'value'    => '1',
+        'id'       => 'local_btcrewards_ofac',
+        'class'    => 'form-check-input',
+        'required' => 'required',
+    ]);
+    $form .= html_writer::tag('label',
+        get_string('my_ofac_label', 'local_btcrewards'),
+        ['for' => 'local_btcrewards_ofac', 'class' => 'form-check-label small']);
+    $form .= html_writer::end_div();
+
     $form .= html_writer::tag('button',
         get_string('my_claim_button', 'local_btcrewards') . ' · ' . $usdformatted,
         ['type' => 'submit', 'class' => 'btn btn-success']);
