@@ -243,7 +243,13 @@ if ($projectedusdcents < $minpayoutcents) {
         'required' => 'required',
     ]);
     $form .= html_writer::tag('label',
-        get_string('my_ofac_label', 'local_btcrewards'),
+        get_string('my_ofac_label', 'local_btcrewards') . ' ' .
+        html_writer::tag('span', 'ⓘ', [
+            'class' => 'text-muted',
+            'title' => get_string('my_ofac_list', 'local_btcrewards'),
+            'tabindex' => '0',
+            'style' => 'cursor: help;',
+        ]),
         ['for' => 'local_btcrewards_ofac', 'class' => 'form-check-label small']);
     $form .= html_writer::end_div();
 
