@@ -233,24 +233,25 @@ if ($projectedusdcents < $minpayoutcents) {
         ['class' => 'small text-danger mt-2']);
     $form .= html_writer::end_div();
 
-    $form .= html_writer::start_div('form-check mb-3');
+    $form .= html_writer::start_div('d-flex align-items-center mb-3');
     $form .= html_writer::empty_tag('input', [
         'type'     => 'checkbox',
         'name'     => 'ofac_attestation',
         'value'    => '1',
         'id'       => 'local_btcrewards_ofac',
-        'class'    => 'form-check-input',
+        'class'    => 'form-check-input me-2 mt-0',
         'required' => 'required',
+        'style'    => 'flex-shrink: 0;',
     ]);
     $form .= html_writer::tag('label',
         get_string('my_ofac_label', 'local_btcrewards') . ' ' .
-        html_writer::tag('span', 'ⓘ', [
-            'class' => 'text-muted',
+        html_writer::tag('i', '', [
+            'class' => 'fa fa-info-circle text-info ms-1',
             'title' => get_string('my_ofac_list', 'local_btcrewards'),
             'tabindex' => '0',
             'style' => 'cursor: help;',
         ]),
-        ['for' => 'local_btcrewards_ofac', 'class' => 'form-check-label small']);
+        ['for' => 'local_btcrewards_ofac', 'class' => 'form-check-label small mb-0']);
     $form .= html_writer::end_div();
 
     $form .= html_writer::tag('button',
