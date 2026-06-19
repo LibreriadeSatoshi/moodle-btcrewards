@@ -33,5 +33,12 @@ function xmldb_local_btcrewards_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 2026052500, 'local', 'btcrewards');
     }
 
+    if ($oldversion < 2026061901) {
+        global $CFG;
+        require_once($CFG->dirroot . '/local/btcrewards/lib.php');
+        local_btcrewards_ensure_profile_field();
+        upgrade_plugin_savepoint(true, 2026061901, 'local', 'btcrewards');
+    }
+
     return true;
 }

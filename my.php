@@ -44,6 +44,9 @@ if (data_submitted() && confirm_sesskey()) {
             throw new \moodle_exception('my_ofac_required', 'local_btcrewards');
         }
         (new \local_btcrewards\payout_engine())->claim($userid, $destination);
+        if (optional_param('save_address', '', PARAM_RAW) === '1') {
+            local_btcrewards_save_user_ln_address($userid, $destination);
+        }
         redirect($pageurl, get_string('my_claimed_ok', 'local_btcrewards'), null,
             \core\output\notification::NOTIFY_SUCCESS);
     } catch (\moodle_exception $e) {
@@ -215,7 +218,8 @@ if ($projectedusdcents < $minpayoutcents) {
         get_string('my_address_label', 'local_btcrewards'),
         ['for' => 'local_btcrewards_destination', 'class' => 'font-weight-bold']);
     $alloweddomain = trim((string) get_config('local_btcrewards', 'allowed_ln_domain'));
-    $form .= html_writer::empty_tag('input', [
+    $savedaddress = local_btcrewards_get_user_ln_address($userid);
+    $inputattrs = [
         'type'         => 'text',
         'name'         => 'destination',
         'id'           => 'local_btcrewards_destination',
@@ -223,25 +227,48 @@ if ($projectedusdcents < $minpayoutcents) {
         'required'     => 'required',
         'autocomplete' => 'off',
         'placeholder'  => get_string('my_address_placeholder', 'local_btcrewards', $alloweddomain),
+    ];
+    if ($savedaddress !== '') {
+        $inputattrs['value'] = $savedaddress;
+    }
+
+    $form .= html_writer::start_div('row align-items-center g-3');
+    $form .= html_writer::start_div('col');
+    $form .= html_writer::empty_tag('input', $inputattrs);
+    $form .= html_writer::end_div();
+    $form .= html_writer::start_div('col-auto');
+    $form .= html_writer::start_div('d-inline-flex align-items-center');
+    $form .= html_writer::empty_tag('input', [
+        'type'    => 'checkbox',
+        'name'    => 'save_address',
+        'value'   => '1',
+        'id'      => 'local_btcrewards_save',
+        'class'   => 'form-check-input me-2 mt-0',
+        'checked' => 'checked',
     ]);
+    $form .= html_writer::tag('label',
+        get_string('my_save_address', 'local_btcrewards'),
+        ['for' => 'local_btcrewards_save', 'class' => 'form-check-label small mb-0']);
+    $form .= html_writer::end_div();
+    $form .= html_writer::end_div();
+    $form .= html_writer::end_div();
+
     $form .= html_writer::tag('div',
         get_string('my_address_help', 'local_btcrewards', $alloweddomain),
         ['class' => 'form-text text-muted small mt-2']);
-
     $form .= html_writer::tag('div',
-        get_string('my_address_warning', 'local_btcrewards'),
-        ['class' => 'small text-danger mt-2']);
+        get_string('my_address_get_one', 'local_btcrewards'),
+        ['class' => 'small mt-1']);
     $form .= html_writer::end_div();
 
-    $form .= html_writer::start_div('d-flex align-items-center mb-3');
+    $form .= html_writer::start_div('form-check mb-3');
     $form .= html_writer::empty_tag('input', [
         'type'     => 'checkbox',
         'name'     => 'ofac_attestation',
         'value'    => '1',
         'id'       => 'local_btcrewards_ofac',
-        'class'    => 'form-check-input me-2 mt-0',
+        'class'    => 'form-check-input',
         'required' => 'required',
-        'style'    => 'flex-shrink: 0;',
     ]);
     $form .= html_writer::tag('label',
         get_string('my_ofac_label', 'local_btcrewards') . ' ' .
@@ -251,7 +278,7 @@ if ($projectedusdcents < $minpayoutcents) {
             'tabindex' => '0',
             'style' => 'cursor: help;',
         ]),
-        ['for' => 'local_btcrewards_ofac', 'class' => 'form-check-label small mb-0']);
+        ['for' => 'local_btcrewards_ofac', 'class' => 'form-check-label small ms-2']);
     $form .= html_writer::end_div();
 
     $form .= html_writer::tag('button',

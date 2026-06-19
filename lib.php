@@ -117,6 +117,88 @@ function local_btcrewards_resource_link(string $component, int $itemid, int $cou
     return '';
 }
 
+/**
+ * Ensure the user-profile field for storing a Lightning address exists.
+ * Idempotent — safe to call from install + upgrade.
+ *
+ * @return int field id
+ */
+function local_btcrewards_ensure_profile_field(): int {
+    global $DB;
+
+    $shortname = 'btclnaddress';
+    $existing = $DB->get_record('user_info_field', ['shortname' => $shortname]);
+    if ($existing) {
+        return (int) $existing->id;
+    }
+
+    $catname = get_string('pluginname', 'local_btcrewards');
+    $category = $DB->get_record('user_info_category', ['name' => $catname]);
+    if (!$category) {
+        $maxorder = (int) $DB->get_field_sql('SELECT COALESCE(MAX(sortorder), 0) FROM {user_info_category}');
+        $category = (object) ['name' => $catname, 'sortorder' => $maxorder + 1];
+        $category->id = $DB->insert_record('user_info_category', $category);
+    }
+
+    $field = (object) [
+        'shortname'         => $shortname,
+        'name'              => get_string('profile_field_lnaddress', 'local_btcrewards'),
+        'datatype'          => 'text',
+        'description'       => get_string('profile_field_lnaddress_desc', 'local_btcrewards'),
+        'descriptionformat' => FORMAT_HTML,
+        'categoryid'        => $category->id,
+        'sortorder'         => 1,
+        'required'          => 0,
+        'locked'            => 0,
+        'visible'           => 1,
+        'forceunique'       => 0,
+        'signup'            => 0,
+        'defaultdata'       => '',
+        'defaultdataformat' => FORMAT_PLAIN,
+        'param1'            => 40,
+        'param2'            => 100,
+        'param3'            => 0,
+        'param4'            => '',
+        'param5'            => '',
+    ];
+    return (int) $DB->insert_record('user_info_field', $field);
+}
+
+/**
+ * Read the user's saved Lightning address from the custom profile field.
+ * Returns empty string if unset.
+ */
+function local_btcrewards_get_user_ln_address(int $userid): string {
+    global $DB;
+    return (string) $DB->get_field_sql('
+        SELECT d.data
+          FROM {user_info_field} f
+          JOIN {user_info_data} d ON d.fieldid = f.id
+         WHERE f.shortname = ? AND d.userid = ?
+    ', ['btclnaddress', $userid]);
+}
+
+/**
+ * Save (or overwrite) the user's Lightning address in the custom profile field.
+ */
+function local_btcrewards_save_user_ln_address(int $userid, string $address): void {
+    global $DB;
+    $field = $DB->get_record('user_info_field', ['shortname' => 'btclnaddress'], '*', MUST_EXIST);
+    $existing = $DB->get_record('user_info_data', ['userid' => $userid, 'fieldid' => $field->id]);
+    if ($existing) {
+        $existing->data = $address;
+        $existing->dataformat = FORMAT_PLAIN;
+        $DB->update_record('user_info_data', $existing);
+        return;
+    }
+    $DB->insert_record('user_info_data', [
+        'userid'     => $userid,
+        'fieldid'    => $field->id,
+        'data'       => $address,
+        'dataformat' => FORMAT_PLAIN,
+    ]);
+}
+
 function local_btcrewards_extend_navigation_course(navigation_node $navigation, stdClass $course, context $context) {
     if (!is_siteadmin()) {
         return;

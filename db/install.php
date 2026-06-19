@@ -7,7 +7,7 @@
 // (at your option) any later version.
 
 /**
- * Version metadata for local_btcrewards.
+ * Install steps for local_btcrewards.
  *
  * @package    local_btcrewards
  * @copyright  2026 local_btcrewards contributors
@@ -16,8 +16,8 @@
 
 defined('MOODLE_INTERNAL') || die();
 
-$plugin->component = 'local_btcrewards';
-$plugin->version   = 2026061901;
-$plugin->requires  = 2022112800;
-$plugin->maturity  = MATURITY_ALPHA;
-$plugin->release   = '0.1.0';
+function xmldb_local_btcrewards_install() {
+    global $CFG;
+    require_once($CFG->dirroot . '/local/btcrewards/lib.php');
+    local_btcrewards_ensure_profile_field();
+}
