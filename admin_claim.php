@@ -93,6 +93,16 @@ if ($action !== '' && confirm_sesskey()) {
                 null, \core\output\notification::NOTIFY_ERROR);
         }
     }
+    if ($action === 'fund') {
+        $fundsats = required_param('fundsats', PARAM_INT);
+        try {
+            $SESSION->local_btcrewards_fundinvoice =
+                (new \local_btcrewards\payment_client())->create_deposit_invoice($fundsats);
+            redirect($pageurl);
+        } catch (\moodle_exception $e) {
+            redirect($pageurl, $e->getMessage(), null, \core\output\notification::NOTIFY_ERROR);
+        }
+    }
     if ($action === 'claim') {
         $targetuserid = required_param('userid', PARAM_INT);
         $destination  = required_param('destination', PARAM_RAW_TRIMMED);
@@ -106,6 +116,9 @@ if ($action !== '' && confirm_sesskey()) {
         }
     }
 }
+
+$fundinvoice = $SESSION->local_btcrewards_fundinvoice ?? null;
+unset($SESSION->local_btcrewards_fundinvoice);
 
 echo $OUTPUT->header();
 
@@ -146,6 +159,30 @@ try {
         html_writer::tag('div', number_format($wallet['pending_receive_sat']) . ' sats'),
         ['class' => 'col-md-4']);
     echo html_writer::end_div();
+
+    echo html_writer::start_tag('form', ['method' => 'post', 'action' => $pageurl,
+        'class' => 'd-flex gap-2 mt-3', 'style' => 'max-width: 30rem;']);
+    echo html_writer::empty_tag('input', ['type' => 'hidden', 'name' => 'sesskey', 'value' => sesskey()]);
+    echo html_writer::empty_tag('input', ['type' => 'hidden', 'name' => 'action',  'value' => 'fund']);
+    echo html_writer::empty_tag('input', ['type' => 'number', 'name' => 'fundsats',
+        'class'       => 'form-control form-control-sm',
+        'min'         => 1,
+        'placeholder' => get_string('admin_fund_amount_placeholder', 'local_btcrewards'),
+        'required'    => 'required']);
+    echo html_writer::tag('button', get_string('admin_fund_generate', 'local_btcrewards'),
+        ['type' => 'submit', 'class' => 'btn btn-sm btn-outline-primary text-nowrap']);
+    echo html_writer::end_tag('form');
+
+    if ($fundinvoice !== null) {
+        echo html_writer::start_div('mt-3');
+        echo html_writer::tag('div', get_string('admin_fund_invoice_help', 'local_btcrewards'),
+            ['class' => 'small text-muted mb-1']);
+        echo html_writer::tag('textarea', s($fundinvoice['payment_request']),
+            ['class' => 'form-control font-monospace small', 'rows' => 3,
+             'readonly' => 'readonly', 'onclick' => 'this.select()']);
+        echo html_writer::end_div();
+    }
+
     echo html_writer::end_div();
     echo html_writer::end_div();
 } catch (\moodle_exception $e) {

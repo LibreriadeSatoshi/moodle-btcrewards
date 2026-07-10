@@ -144,6 +144,28 @@ class payment_client {
     }
 
     /**
+     * Create a bolt11 invoice that pays into the service wallet, so an admin
+     * can fund it from an external wallet.
+     *
+     * @param int $sats Amount the invoice should request.
+     * @return array{payment_request: string, fee_sat: int}
+     * @throws \moodle_exception If the service is unreachable or refuses.
+     */
+    public function create_deposit_invoice(int $sats): array {
+        $payload = json_encode(['amount_sats' => $sats]);
+        [$code, $raw] = $this->request('POST', '/deposit', $payload, 30000);
+        if ($code < 200 || $code >= 300) {
+            throw new \moodle_exception('error_deposit_unavailable', 'local_btcrewards', '', "HTTP $code");
+        }
+        $body = json_decode((string) $raw, true) ?: [];
+        $invoice = (string) ($body['payment_request'] ?? '');
+        if ($invoice === '') {
+            throw new \moodle_exception('error_deposit_unavailable', 'local_btcrewards', '', 'no invoice in body');
+        }
+        return ['payment_request' => $invoice, 'fee_sat' => (int) ($body['fee_sat'] ?? 0)];
+    }
+
+    /**
      * GET a JSON endpoint and return the decoded body. Centralises the
      * request → 2xx → decode dance shared by every read endpoint.
      *
