@@ -18,6 +18,31 @@ defined('MOODLE_INTERNAL') || die();
 
 $string['pluginname'] = 'Bitcoin Rewards';
 
+$string['privacy:metadata:points_table'] = 'The rewards earned by a user.';
+$string['privacy:metadata:payouts_table'] = 'The user\'s requested payouts and payment history.';
+$string['privacy:metadata:items_table'] = 'Associations between payouts and the rewards they consume.';
+$string['privacy:metadata:userid'] = 'The user who earned the reward or requested the payout.';
+$string['privacy:metadata:courseid'] = 'The course in which the reward was earned.';
+$string['privacy:metadata:points'] = 'The number of reward points earned.';
+$string['privacy:metadata:component'] = 'The type of activity that earned the reward.';
+$string['privacy:metadata:itemid'] = 'The activity or item that earned the reward.';
+$string['privacy:metadata:timecreated'] = 'When the record was created.';
+$string['privacy:metadata:timemodified'] = 'When the payout was last updated.';
+$string['privacy:metadata:usd_cents'] = 'The payout value in US cents.';
+$string['privacy:metadata:btc_usd_rate'] = 'The exchange rate applied to the payout.';
+$string['privacy:metadata:sats'] = 'The payment amount in satoshis.';
+$string['privacy:metadata:destination'] = 'The user\'s payment address, invoice, or offer.';
+$string['privacy:metadata:dest_type'] = 'The type of payment destination.';
+$string['privacy:metadata:status'] = 'The payout processing status.';
+$string['privacy:metadata:txid'] = 'The payment transaction reference.';
+$string['privacy:metadata:preimage'] = 'The Lightning payment settlement proof.';
+$string['privacy:metadata:attempts'] = 'The number of payment attempts.';
+$string['privacy:metadata:last_error'] = 'The most recent payment error.';
+$string['privacy:metadata:payoutid'] = 'The payout associated with earned rewards.';
+$string['privacy:metadata:pointsid'] = 'The earned reward included in a payout.';
+$string['privacy:metadata:payment_service'] = 'Payment amounts and destinations are sent to the configured payment service.';
+$string['privacy:metadata:core_user'] = 'A saved Lightning address is stored in the user\'s custom profile fields.';
+
 $string['source_native'] = 'Native (built-in)';
 $string['source_xp'] = 'Level Up XP';
 
