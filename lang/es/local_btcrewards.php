@@ -35,6 +35,10 @@ $string['setting_payment_service_url'] = 'URL del servicio de pago';
 $string['setting_payment_service_url_desc'] = 'URL base del microservicio interno de pagos Lightning.';
 $string['setting_payment_service_secret'] = 'Secreto del servicio de pago';
 $string['setting_payment_service_secret_desc'] = 'Secreto compartido enviado al servicio de pago mediante el encabezado X-Internal-Token.';
+$string['setting_webhook_secret'] = 'Secreto del webhook';
+$string['setting_webhook_secret_desc'] = 'Secreto compartido usado para verificar el encabezado X-Webhook-Signature (HMAC-SHA256) de las notificaciones de pago entrantes. Debe coincidir con WEBHOOK_SECRET del servicio de pago.';
+$string['setting_webhook_url'] = 'URL del webhook';
+$string['setting_webhook_url_desc'] = 'Configura MOODLE_WEBHOOK_URL del servicio de pago para que envíe (POST) los eventos finales de pago a: <code>{$a}</code>';
 $string['setting_points_course_completed'] = 'Puntos por completar un curso';
 $string['setting_points_course_completed_desc'] = 'Puntos otorgados al completar un curso. Se configura por curso en Curso → Más → Recompensas Bitcoin.';
 
