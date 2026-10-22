@@ -308,7 +308,11 @@ class payout_engine {
             }
 
             try {
-                $result = $client->pay((int) $row->sats, (string) $row->destination);
+                $result = $client->pay(
+                    (int) $row->sats,
+                    (string) $row->destination,
+                    payment_client::payout_key((int) $row->id)
+                );
                 $row->attempts     = (int) $row->attempts + 1;
                 $row->timemodified = time();
                 if (!empty($result['tx_id'])) {

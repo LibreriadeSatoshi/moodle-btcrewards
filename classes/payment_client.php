@@ -55,18 +55,43 @@ class payment_client {
     }
 
     /**
+     * The service's idempotency key for a payout queue row: unique per Moodle
+     * site, so two sites sharing one service can't collide.
+     *
+     * @param int $payoutid btcrewards_payout_queue.id
+     * @return string
+     */
+    public static function payout_key(int $payoutid): string {
+        return get_site_identifier() . ':' . $payoutid;
+    }
+
+    /**
      * Submit a new payment. The service auto-detects the destination type.
      * Terminal state arrives later via the webhook, not via polling.
+     *
+     * The service records $payoutkey and never pays the same key twice, so
+     * retrying after a timeout is safe.
      *
      * Never throws — transport / HTTP errors are reported as status=failed with
      * a `retryable` flag so the caller can decide whether to retry.
      *
      * @param int    $sats
      * @param string $destination  Bitcoin address, bolt11, bolt12 offer, or LN address.
+     * @param string $payoutkey    From payout_key().
      * @return array{tx_id: string, status: string, dest_type: string, error: string, retryable: bool}
      */
-    public function pay(int $sats, string $destination): array {
+    public function pay(int $sats, string $destination, string $payoutkey): array {
+        if ($sats <= 0) {
+            return [
+                'tx_id'     => '',
+                'status'    => self::STATUS_FAILED,
+                'dest_type' => '',
+                'error'     => "invalid amount: $sats sats",
+                'retryable' => false,
+            ];
+        }
         $payload = json_encode([
+            'payout_id'   => $payoutkey,
             'amount_sats' => $sats,
             'destination' => $destination,
         ]);
@@ -184,7 +209,7 @@ class payment_client {
     /**
      * @return array{0: int, 1: string} HTTP code and raw body.
      */
-    private function request(string $method, string $path, ?string $body, int $timeoutms = 3000): array {
+    protected function request(string $method, string $path, ?string $body, int $timeoutms = 3000): array {
         global $CFG;
         require_once($CFG->libdir . '/filelib.php');
 
