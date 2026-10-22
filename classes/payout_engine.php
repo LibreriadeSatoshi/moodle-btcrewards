@@ -291,12 +291,14 @@ class payout_engine {
      * update — if anything between pay() and the status decision throws, we
      * still persist the attempts counter and any tx_id we received, so the
      * next cron tick can't accidentally re-pay.
+     *
+     * @param payment_client|null $client Defaults to a client for the configured service.
      */
-    public function process_queue(): void {
+    public function process_queue(?payment_client $client = null): void {
         global $DB;
 
         $maxattempts = (int) get_config('local_btcrewards', 'max_attempts');
-        $client = new payment_client();
+        $client = $client ?? new payment_client();
 
         $rows = $DB->get_records('btcrewards_payout_queue', ['status' => payout_status::PENDING]);
         foreach ($rows as $row) {
@@ -313,8 +315,17 @@ class payout_engine {
                     (string) $row->destination,
                     payment_client::payout_key((int) $row->id)
                 );
-                $row->attempts     = (int) $row->attempts + 1;
                 $row->timemodified = time();
+                if (!empty($result['transient'])) {
+                    // The service never handled this payout (unreachable, timed
+                    // out, busy or at its daily cap). Retry the same key next run
+                    // without spending an attempt: giving up here could fail a
+                    // payout whose payment actually went out, and the student's
+                    // new claim would then pay a second time.
+                    $row->last_error = (string) $result['error'];
+                    continue;
+                }
+                $row->attempts = (int) $row->attempts + 1;
                 if (!empty($result['tx_id'])) {
                     $row->txid = $result['tx_id'];
                 }
