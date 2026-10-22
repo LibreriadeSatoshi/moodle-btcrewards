@@ -69,16 +69,19 @@ class payment_client {
      * Submit a new payment. The service auto-detects the destination type.
      * Terminal state arrives later via the webhook, not via polling.
      *
-     * The service records $payoutkey and never pays the same key twice, so
-     * retrying after a timeout is safe.
+     * The service pays a $payoutkey at most once, so retrying the same key
+     * after a timeout or error is always safe.
      *
      * Never throws — transport / HTTP errors are reported as status=failed with
-     * a `retryable` flag so the caller can decide whether to retry.
+     * a `retryable` flag so the caller can decide whether to retry. `transient`
+     * marks failures that say nothing about the payout itself (service
+     * unreachable, timed out, busy, daily cap reached): the caller should retry
+     * the same key later without counting it as an attempt.
      *
      * @param int    $sats
      * @param string $destination  Bitcoin address, bolt11, bolt12 offer, or LN address.
      * @param string $payoutkey    From payout_key().
-     * @return array{tx_id: string, status: string, dest_type: string, error: string, retryable: bool}
+     * @return array{tx_id: string, status: string, dest_type: string, error: string, retryable: bool, transient: bool}
      */
     public function pay(int $sats, string $destination, string $payoutkey): array {
         if ($sats <= 0) {
@@ -88,6 +91,7 @@ class payment_client {
                 'dest_type' => '',
                 'error'     => "invalid amount: $sats sats",
                 'retryable' => false,
+                'transient' => false,
             ];
         }
         $payload = json_encode([
@@ -98,9 +102,11 @@ class payment_client {
 
         [$code, $raw] = $this->request('POST', '/pay', $payload, 60000);
 
-        // HTTP 4xx from the service = permanent (bad destination, bad amount).
+        // HTTP 4xx from the service = permanent (bad destination, bad amount),
+        // except 429 (daily cap reached), which clears by itself.
         // HTTP 5xx or transport error (code 0) = transient, worth retrying.
         if ($code < 200 || $code >= 300) {
+            $transient = ($code === 0 || $code === 429 || $code >= 500);
             $detail = '';
             $decoded = json_decode((string) $raw, true);
             if (is_array($decoded)) {
@@ -111,7 +117,8 @@ class payment_client {
                 'status'    => self::STATUS_FAILED,
                 'dest_type' => '',
                 'error'     => "HTTP $code: $detail",
-                'retryable' => ($code === 0 || $code >= 500),
+                'retryable' => $transient,
+                'transient' => $transient,
             ];
         }
 
@@ -124,6 +131,7 @@ class payment_client {
             // Default to retryable=true if the service omits the flag, so older
             // service builds stay compatible.
             'retryable' => (bool) ($response['retryable'] ?? true),
+            'transient' => false,
         ];
     }
 

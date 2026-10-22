@@ -111,6 +111,25 @@ final class payment_client_test extends \advanced_testcase {
         $result = $client->pay(150, 'student@pay.ismos.xyz', payment_client::payout_key(7));
 
         $this->assertFalse($result['retryable']);
+        $this->assertFalse($result['transient']);
         $this->assertStringContainsString('409', $result['error']);
+    }
+
+    public function test_unreachable_busy_or_capped_service_is_transient(): void {
+        $this->resetAfterTest();
+        foreach ([0, 429, 502, 503] as $code) {
+            $client = $this->recording_client([$code, '{"detail": "x"}']);
+            $result = $client->pay(150, 'student@pay.ismos.xyz', payment_client::payout_key(7));
+            $this->assertTrue($result['transient'], "HTTP $code");
+            $this->assertTrue($result['retryable'], "HTTP $code");
+        }
+    }
+
+    public function test_service_answer_is_not_transient(): void {
+        $this->resetAfterTest();
+        $client = $this->recording_client([200, '{"tx_id": "", "status": "failed", "retryable": true}']);
+        $result = $client->pay(150, 'student@pay.ismos.xyz', payment_client::payout_key(7));
+        $this->assertFalse($result['transient']);
+        $this->assertTrue($result['retryable']);
     }
 }
