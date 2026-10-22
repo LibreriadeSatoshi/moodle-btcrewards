@@ -66,7 +66,7 @@ if ($hassiteconfig) {
         'local_btcrewards/allowed_ln_domain',
         get_string('setting_allowed_ln_domain', 'local_btcrewards'),
         get_string('setting_allowed_ln_domain_desc', 'local_btcrewards'),
-        'pay.libreriadesatoshi.com',
+        'pay.ismos.xyz',
         PARAM_HOST
     ));
 

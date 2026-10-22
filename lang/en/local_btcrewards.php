@@ -130,7 +130,7 @@ $string['my_payout_amount_label'] = 'You will receive';
 $string['my_address_label'] = 'Where should we send it?';
 $string['my_address_placeholder'] = 'you@{$a}';
 $string['my_address_help'] = 'Enter your Lightning address on the <code>{$a}</code> domain (e.g. <code>you@{$a}</code>).';
-$string['my_address_get_one'] = 'Don\'t have one yet? Create your Lightning address at <a href="https://wallet.libreriadesatoshi.com/" target="_blank" rel="noopener">wallet.libreriadesatoshi.com</a>.';
+$string['my_address_get_one'] = 'Don\'t have one yet? Create your Lightning address at <a href="https://wallet.ismos.xyz/" target="_blank" rel="noopener">wallet.ismos.xyz</a>.';
 $string['my_save_address'] = 'Save for next time';
 $string['profile_field_lnaddress'] = 'Lightning Address';
 $string['profile_field_lnaddress_desc'] = 'Your Lightning address for receiving Bitcoin reward payouts.';
