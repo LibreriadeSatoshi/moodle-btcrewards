@@ -205,4 +205,4 @@ $string['privacy:metadata:last_error'] = 'El último error de pago.';
 $string['privacy:metadata:payoutid'] = 'El cobro asociado a las recompensas obtenidas.';
 $string['privacy:metadata:pointsid'] = 'La recompensa obtenida incluida en un cobro.';
 $string['privacy:metadata:payment_service'] = 'Los montos y destinos de pago se envían al servicio de pago configurado, que guarda un registro de cada cobro.';
-$string['privacy:metadata:core_user'] = 'La dirección Lightning guardada se almacena en los campos de perfil personalizados del usuario.';
+$string['privacy:metadata:profilefield'] = 'La dirección Lightning guardada se almacena en un campo de perfil personalizado y se exporta y elimina junto con los demás campos de perfil del usuario.';

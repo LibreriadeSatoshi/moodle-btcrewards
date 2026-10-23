@@ -41,7 +41,7 @@ $string['privacy:metadata:last_error'] = 'The most recent payment error.';
 $string['privacy:metadata:payoutid'] = 'The payout associated with earned rewards.';
 $string['privacy:metadata:pointsid'] = 'The earned reward included in a payout.';
 $string['privacy:metadata:payment_service'] = 'Payment amounts and destinations are sent to the configured payment service, which keeps a record of each payout.';
-$string['privacy:metadata:core_user'] = 'A saved Lightning address is stored in the user\'s custom profile fields.';
+$string['privacy:metadata:profilefield'] = 'A saved Lightning address is stored in a custom profile field, exported and deleted with the user\'s other profile fields.';
 
 $string['source_native'] = 'Native (built-in)';
 $string['source_xp'] = 'Level Up XP';

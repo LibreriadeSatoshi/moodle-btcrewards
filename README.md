@@ -18,8 +18,19 @@ Moodle event → points → student claims → queue row → cron submits to ser
 ```
 
 Rate and sats are locked at claim time; the service pushes terminal events
-back via a signed webhook (no polling). Onchain BTC is supported but subject
-to the swap provider's minimum (currently around $20).
+back via a signed webhook (no polling). Only Lightning addresses on the
+allowed domain are paid.
+
+## Privacy
+
+The privacy provider exports a user's points and payouts and, on an approved
+deletion request, deletes all of them (points, payouts and their links). Moodle
+is not the financial record: every payout is also in the payout wallet and the
+payment service's ledger, which keeps the amount and destination of each
+payout. A payout that is in flight when its user is deleted still completes:
+the payment service may send it after the rows are gone, and its webhook then
+finds no payout (404) until the service gives up. The saved Lightning address
+is a custom profile field, handled by Moodle's profile field privacy provider.
 
 ## Installation
 

@@ -68,7 +68,8 @@ class provider implements
             'amount_sats' => 'privacy:metadata:sats',
             'destination' => 'privacy:metadata:destination',
         ], 'privacy:metadata:payment_service');
-        $collection->link_subsystem('core_user', 'privacy:metadata:core_user');
+        // The saved Lightning address is a custom profile field: its profilefield plugin exports and deletes it.
+        $collection->add_plugintype_link('profilefield', [], 'privacy:metadata:profilefield');
         return $collection;
     }
 

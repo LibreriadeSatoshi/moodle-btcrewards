@@ -205,4 +205,4 @@ $string['privacy:metadata:last_error'] = 'O último erro de pagamento.';
 $string['privacy:metadata:payoutid'] = 'O saque associado às recompensas obtidas.';
 $string['privacy:metadata:pointsid'] = 'A recompensa obtida incluída em um saque.';
 $string['privacy:metadata:payment_service'] = 'Os valores e destinos de pagamento são enviados ao serviço de pagamento configurado, que mantém um registro de cada saque.';
-$string['privacy:metadata:core_user'] = 'O endereço Lightning salvo é armazenado nos campos de perfil personalizados do usuário.';
+$string['privacy:metadata:profilefield'] = 'O endereço Lightning salvo é armazenado em um campo de perfil personalizado e é exportado e excluído junto com os demais campos de perfil do usuário.';
