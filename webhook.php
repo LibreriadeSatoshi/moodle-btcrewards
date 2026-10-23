@@ -88,29 +88,5 @@ if ($txid === '' || !in_array($status, ['settled', 'failed'], true)) {
     local_btcrewards_webhook_respond(400, ['error' => 'missing tx_id or invalid status']);
 }
 
-global $DB;
-
-$row = $DB->get_record('btcrewards_payout_queue', ['txid' => $txid]);
-if (!$row) {
-    // Webhook may arrive before our /pay response is persisted. Return 4xx so
-    // the service retries with backoff; on the next attempt the row will exist.
-    local_btcrewards_webhook_respond(404, ['error' => 'tx_id not found', 'tx_id' => $txid]);
-}
-
-// Idempotency: if already terminal, acknowledge without rewriting state.
-if (in_array($row->status,
-    [\local_btcrewards\payout_status::PAID, \local_btcrewards\payout_status::FAILED],
-    true)) {
-    local_btcrewards_webhook_respond(200, ['received' => true, 'duplicate' => true]);
-}
-
-$row->status = ($status === 'settled')
-    ? \local_btcrewards\payout_status::PAID
-    : \local_btcrewards\payout_status::FAILED;
-$row->timemodified = time();
-if ($preimage !== '') {
-    $row->preimage = $preimage;
-}
-$DB->update_record('btcrewards_payout_queue', $row);
-
-local_btcrewards_webhook_respond(200, ['received' => true]);
+[$code, $response] = \local_btcrewards\payout_event::apply($txid, $status, $preimage);
+local_btcrewards_webhook_respond($code, $response);

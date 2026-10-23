@@ -29,6 +29,7 @@ defined('MOODLE_INTERNAL') || die();
  *   ACCEPTED         → PAID      (settlement webhook arrived)
  *   ACCEPTED         → FAILED    (failure webhook arrived)
  *   FAILED           → REQUEUED  (user clicked "try again", points returned)
+ *   FAILED           → PAID      (settlement webhook after a failure report)
  */
 final class payout_status {
     /** Submitted by user, held until an admin approves. */

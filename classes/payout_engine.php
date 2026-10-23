@@ -233,11 +233,17 @@ class payout_engine {
         if ($row->status !== payout_status::FAILED) {
             throw new \moodle_exception('requeue_not_failed', 'local_btcrewards');
         }
-
-        $DB->delete_records('btcrewards_payout_items', ['payoutid' => $payoutid]);
-        $row->status = payout_status::REQUEUED;
-        $row->timemodified = time();
-        $DB->update_record('btcrewards_payout_queue', $row);
+        // Change the status first: the points return only if this call made the change.
+        $transaction = $DB->start_delegated_transaction();
+        try {
+            if (!payout_queue::transition($payoutid, payout_status::FAILED, payout_status::REQUEUED)) {
+                throw new \moodle_exception('requeue_not_failed', 'local_btcrewards');
+            }
+            $DB->delete_records('btcrewards_payout_items', ['payoutid' => $payoutid]);
+            $transaction->allow_commit();
+        } catch (\Throwable $e) {
+            $transaction->rollback($e);
+        }
     }
 
     /**
@@ -245,11 +251,10 @@ class payout_engine {
      * cron tick will submit it.
      */
     public function approve_pending(int $payoutid): void {
-        global $DB;
-        $row = $this->load_pending_approval($payoutid);
-        $row->status = payout_status::PENDING;
-        $row->timemodified = time();
-        $DB->update_record('btcrewards_payout_queue', $row);
+        $this->load_pending_approval($payoutid);
+        if (!payout_queue::transition($payoutid, payout_status::PENDING_APPROVAL, payout_status::PENDING)) {
+            throw new \moodle_exception('approval_not_pending', 'local_btcrewards');
+        }
     }
 
     /**
@@ -258,11 +263,18 @@ class payout_engine {
      */
     public function reject_pending(int $payoutid): void {
         global $DB;
-        $row = $this->load_pending_approval($payoutid);
-        $DB->delete_records('btcrewards_payout_items', ['payoutid' => $payoutid]);
-        $row->status = payout_status::REQUEUED;
-        $row->timemodified = time();
-        $DB->update_record('btcrewards_payout_queue', $row);
+        $this->load_pending_approval($payoutid);
+        // Change the status first: the points return only if this call made the change.
+        $transaction = $DB->start_delegated_transaction();
+        try {
+            if (!payout_queue::transition($payoutid, payout_status::PENDING_APPROVAL, payout_status::REQUEUED)) {
+                throw new \moodle_exception('approval_not_pending', 'local_btcrewards');
+            }
+            $DB->delete_records('btcrewards_payout_items', ['payoutid' => $payoutid]);
+            $transaction->allow_commit();
+        } catch (\Throwable $e) {
+            $transaction->rollback($e);
+        }
     }
 
     /**
