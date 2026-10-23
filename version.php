@@ -17,7 +17,7 @@
 defined('MOODLE_INTERNAL') || die();
 
 $plugin->component = 'local_btcrewards';
-$plugin->version   = 2026102203;
+$plugin->version   = 2026102300;
 $plugin->requires  = 2022112800;
 $plugin->maturity  = MATURITY_ALPHA;
-$plugin->release   = '0.1.4';
+$plugin->release   = '0.1.5';
