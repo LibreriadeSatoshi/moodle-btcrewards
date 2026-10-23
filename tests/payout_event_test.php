@@ -56,6 +56,23 @@ final class payout_event_test extends \advanced_testcase {
         return $DB->get_record('btcrewards_payout_queue', ['id' => $row->id]);
     }
 
+    /**
+     * Run $fn with PHP's error_log redirected to a file and return what was logged.
+     *
+     * @param callable $fn
+     * @return string
+     */
+    private function capture_error_log(callable $fn): string {
+        $file = make_request_directory() . '/error.log';
+        $previous = ini_set('error_log', $file);
+        try {
+            $fn();
+        } finally {
+            ini_set('error_log', $previous);
+        }
+        return is_readable($file) ? file_get_contents($file) : '';
+    }
+
     public function test_unknown_tx_id_is_404_so_the_service_retries(): void {
         $this->resetAfterTest();
         [$code, $body] = payout_event::apply('tx-unknown', 'settled');
@@ -109,9 +126,12 @@ final class payout_event_test extends \advanced_testcase {
         $this->resetAfterTest();
         $row = $this->payout(payout_status::REQUEUED);
 
-        [$code, $body] = payout_event::apply('tx-1', 'settled');
+        $log = $this->capture_error_log(function () use (&$code, &$body) {
+            [$code, $body] = payout_event::apply('tx-1', 'settled');
+        });
 
         $row = $this->reload($row);
+        $this->assertStringContainsString("check payout {$row->id}", $log);
         $this->assertSame(200, $code);
         $this->assertSame('settled after requeue', $body['warning']);
         $this->assertSame(payout_status::REQUEUED, $row->status);

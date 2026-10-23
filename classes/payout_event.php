@@ -37,24 +37,48 @@ final class payout_event {
     public static function apply(string $txid, string $status, string $preimage = ''): array {
         global $DB;
 
-        $row = $DB->get_record('btcrewards_payout_queue', ['txid' => $txid]);
-        if (!$row) {
-            // The event may arrive before our /pay response is persisted. Answer 404
-            // so the service retries with backoff; on a later attempt the row exists.
-            return [404, ['error' => 'tx_id not found', 'tx_id' => $txid]];
+        // A transition fails only if an admin action changed the row in between:
+        // read it again and decide on its new status.
+        for ($try = 0; $try < 3; $try++) {
+            $row = $DB->get_record('btcrewards_payout_queue', ['txid' => $txid]);
+            if (!$row) {
+                // The event may arrive before our /pay response is persisted. Answer 404
+                // so the service retries with backoff; on a later attempt the row exists.
+                return [404, ['error' => 'tx_id not found', 'tx_id' => $txid]];
+            }
+            $result = self::apply_to($row, $status === 'settled', $preimage);
+            if ($result !== null) {
+                return $result;
+            }
         }
+        return [503, ['error' => 'payout changed concurrently, retry']];
+    }
 
-        $settled = ($status === 'settled');
+    /**
+     * Apply the event to one row as read.
+     *
+     * @param \stdClass $row
+     * @param bool      $settled
+     * @param string    $preimage
+     * @return array|null HTTP status and body, or null if the row changed meanwhile.
+     */
+    private static function apply_to(\stdClass $row, bool $settled, string $preimage): ?array {
+        $fields = $preimage !== '' ? ['preimage' => $preimage] : [];
+
         if ($settled && $row->status === payout_status::FAILED) {
-            self::save($row, payout_status::PAID, $preimage,
-                'Reported failed, then settled: the payment went out.');
-            return [200, ['received' => true, 'settled_after_failure' => true]];
+            $fields['last_error'] = 'Reported failed, then settled: the payment went out.';
+            return payout_queue::transition($row->id, payout_status::FAILED, payout_status::PAID, $fields)
+                ? [200, ['received' => true, 'settled_after_failure' => true]]
+                : null;
         }
         if ($settled && $row->status === payout_status::REQUEUED) {
             $note = "Settled after its points were returned to the student: check payout {$row->id} "
                 . "(user {$row->userid}) for a double payment.";
-            self::save($row, payout_status::REQUEUED, $preimage, $note);
-            error_log("local_btcrewards: payment {$txid} {$note}");
+            $fields['last_error'] = $note;
+            if (!payout_queue::transition($row->id, payout_status::REQUEUED, payout_status::REQUEUED, $fields)) {
+                return null;
+            }
+            error_log("local_btcrewards: payment {$row->txid} {$note}");
             return [200, ['received' => true, 'warning' => 'settled after requeue']];
         }
 
@@ -63,28 +87,9 @@ final class payout_event {
             return [200, ['received' => true, 'duplicate' => true]];
         }
 
-        self::save($row, $settled ? payout_status::PAID : payout_status::FAILED, $preimage);
-        return [200, ['received' => true]];
-    }
-
-    /**
-     * Persist a status change.
-     *
-     * @param \stdClass   $row
-     * @param string      $status
-     * @param string      $preimage
-     * @param string|null $note Replaces last_error when given.
-     */
-    private static function save(\stdClass $row, string $status, string $preimage, ?string $note = null): void {
-        global $DB;
-        $row->status = $status;
-        $row->timemodified = time();
-        if ($preimage !== '') {
-            $row->preimage = $preimage;
-        }
-        if ($note !== null) {
-            $row->last_error = $note;
-        }
-        $DB->update_record('btcrewards_payout_queue', $row);
+        $to = $settled ? payout_status::PAID : payout_status::FAILED;
+        return payout_queue::transition($row->id, $row->status, $to, $fields)
+            ? [200, ['received' => true]]
+            : null;
     }
 }
